@@ -6,6 +6,7 @@ MODEL = "gpt-4o-dou"
 # @@@ Sparsity control
 MAX_VOICES = 5
 MIN_TEXT_LENGTH = 20
+SINGLE_COMMENT_MODE = True  # If True, only add 1 comment per request (gradual accumulation)
 
 # Voice archetypes (Disco Elysium skills adapted for general writing)
 VOICE_ARCHETYPES = {

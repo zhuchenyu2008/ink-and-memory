@@ -18,6 +18,9 @@ class VoiceTrigger(BaseModel):
 class VoiceAnalysis(BaseModel):
     voices: list[VoiceTrigger] = Field(description="Detected voice triggers")
 
+class SingleVoiceAnalysis(BaseModel):
+    voice: VoiceTrigger | None = Field(description="Single voice trigger", default=None)
+
 class StatefulVoiceAnalyzer:
     """
     Stateful analyzer that:
@@ -201,11 +204,23 @@ IMPORTANT:
 """
 
         print("🤖 Calling LLM for new comments...")
+
+        # Choose schema based on config
+        if config.SINGLE_COMMENT_MODE:
+            schema_cls = SingleVoiceAnalysis
+            max_voices_for_prompt = 1
+        else:
+            schema_cls = VoiceAnalysis
+            max_voices_for_prompt = config.MAX_VOICES
+
+        # Update prompt with correct max_voices
+        prompt = prompt.replace(f"Maximum {config.MAX_VOICES} NEW voices", f"Maximum {max_voices_for_prompt} NEW voices")
+
         result = agent.run(
             prompt,
             model=config.MODEL,
             cli="no-tools",
-            schema_cls=VoiceAnalysis,
+            schema_cls=schema_cls,
             tracked=True
         )
 
@@ -213,7 +228,13 @@ IMPORTANT:
             print("❌ LLM failed, returning existing comments")
             return self.comments
 
-        new_voices = result.data.get("voices", [])
+        # Extract voices based on schema type
+        if config.SINGLE_COMMENT_MODE:
+            voice = result.data.get("voice")
+            new_voices = [voice] if voice else []
+        else:
+            new_voices = result.data.get("voices", [])
+
         print(f"✅ LLM returned {len(new_voices)} new comments")
 
         # Step 4: Enforce density rules

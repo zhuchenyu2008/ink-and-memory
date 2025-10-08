@@ -1,10 +1,12 @@
 import { FaBrain, FaHeart, FaQuestion, FaCloud } from 'react-icons/fa';
+import { CSSProperties } from 'react';
 
 interface VoiceCommentProps {
   voice: string;
   text: string;
   icon: string;
   color: string;
+  style?: CSSProperties;
 }
 
 const iconMap = {
@@ -22,7 +24,7 @@ const colorMap: Record<string, { background: string; border: string }> = {
   purple: { background: '#f3e6ff', border: '#b366ff' },
 };
 
-export default function VoiceComment({ voice, text, icon, color }: VoiceCommentProps) {
+export default function VoiceComment({ voice, text, icon, color, style }: VoiceCommentProps) {
   const Icon = iconMap[icon as keyof typeof iconMap];
   const colors = colorMap[color] || { background: '#f0f0f0', border: '#ccc' };
 
@@ -32,6 +34,7 @@ export default function VoiceComment({ voice, text, icon, color }: VoiceCommentP
       style={{
         backgroundColor: colors.background,
         borderColor: colors.border,
+        ...style,
       }}
     >
       <div className="voice-header">

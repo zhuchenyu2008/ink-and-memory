@@ -8,7 +8,9 @@ interface VoicesPanelProps {
 export default function VoicesPanel({ children }: VoicesPanelProps) {
   return (
     <BookPage side="right">
-      {children}
+      <div className="voice-stack">
+        {children}
+      </div>
     </BookPage>
   );
 }

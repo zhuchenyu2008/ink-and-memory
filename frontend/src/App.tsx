@@ -95,7 +95,17 @@ function App() {
       <WritingArea onChange={handleTextChange} triggers={voiceTriggers} />
       <VoicesPanel>
         {voices.map((voice, index) => (
-          <VoiceComment key={index} voice={voice.name} text={voice.text} icon={voice.icon} color={voice.color} />
+          <VoiceComment
+            key={index}
+            voice={voice.name}
+            text={voice.text}
+            icon={voice.icon}
+            color={voice.color}
+            style={{
+              zIndex: voices.length - index,
+              transform: `translateY(${index * 30}%)`,
+            }}
+          />
         ))}
       </VoicesPanel>
       <BinderRings />

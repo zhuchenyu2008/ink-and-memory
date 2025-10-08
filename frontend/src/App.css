@@ -110,10 +110,7 @@
 }
 
 .voice-comment {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
   padding: 1rem;
   border-left: 4px solid;
   border-radius: 4px;

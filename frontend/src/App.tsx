@@ -107,7 +107,7 @@ function App() {
             isTopCard={false}
             style={{
               zIndex: index + 1,
-              transform: `translateY(${index * 55}%)`,
+              marginTop: index === 0 ? 0 : '-45%',
             }}
           />
         ))}

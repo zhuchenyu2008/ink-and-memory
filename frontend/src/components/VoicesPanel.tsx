@@ -1,4 +1,4 @@
-import { ReactNode, useRef, useEffect } from 'react';
+import { type ReactNode, useRef, useEffect } from 'react';
 import BookPage from './BookPage';
 
 interface VoicesPanelProps {

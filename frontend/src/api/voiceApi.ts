@@ -29,6 +29,7 @@ interface StatusResponse {
  * Trigger voice analysis session
  */
 export async function triggerAnalysis(text: string, sessionId: string): Promise<string> {
+  console.log('📤 Sending trigger request...');
   const response = await fetch(`${API_BASE}/api/trigger`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -38,11 +39,15 @@ export async function triggerAnalysis(text: string, sessionId: string): Promise<
     })
   });
 
+  console.log('📥 Got response, status:', response.status);
   const data: TriggerResponse = await response.json();
+  console.log('📋 Parsed JSON:', data);
+
   if (!data.success) {
     throw new Error('Failed to trigger analysis');
   }
 
+  console.log('✅ Exec ID:', data.exec_id);
   return data.exec_id;
 }
 
@@ -54,11 +59,16 @@ export async function getAnalysisResult(exec_id: string): Promise<StatusResponse
   const maxAttempts = 60;
   let attempts = 0;
 
+  console.log('🔄 Starting to poll for exec_id:', exec_id);
+
   while (attempts < maxAttempts) {
+    console.log(`📊 Polling attempt ${attempts + 1}/${maxAttempts}...`);
     const response = await fetch(`${API_BASE}/api/status/${exec_id}`);
     const data: StatusResponse = await response.json();
+    console.log('📊 Status:', data.status);
 
     if (data.status === 'completed') {
+      console.log('✅ Analysis completed!', data.result);
       return data.result;
     }
 

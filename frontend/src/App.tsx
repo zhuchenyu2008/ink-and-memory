@@ -32,6 +32,12 @@ function App() {
       : generateUUID()
   ).current;
 
+  // @@@ Version logging for cache debugging
+  useEffect(() => {
+    console.log('🎭 Ink & Memory - Version: v1.1.0-weighted-40');
+    console.log('📊 Analysis trigger threshold: 40 weight units (~40 English chars OR ~13 Chinese chars)');
+  }, []);
+
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceTriggers, setVoiceTriggers] = useState<VoiceTrigger[]>([]);
   const [currentText, setCurrentText] = useState<string>('');
@@ -80,6 +86,23 @@ function App() {
     setFocusedVoiceIndex(closestIndex);
   }, [cursorPosition, voices]);
 
+  // @@@ weighted-character-counting - English chars = 1 weight, CJK chars = 3 weight
+  // This elegantly balances both languages: ~30 English chars OR ~10 Chinese chars to trigger
+  const getWeightedLength = (text: string): number => {
+    let weight = 0;
+
+    for (const char of text) {
+      // CJK characters (Chinese, Japanese, Korean)
+      if (/[\u4e00-\u9fa5\u3040-\u309f\u30a0-\u30ff]/.test(char)) {
+        weight += 3;  // Chinese character = 3 weight
+      } else {
+        weight += 1;  // English/other = 1 weight
+      }
+    }
+
+    return weight;
+  };
+
   const analyzeIfNeeded = async () => {
     // Skip if already analyzing
     if (isAnalyzingRef.current) {
@@ -87,10 +110,15 @@ function App() {
     }
 
     const currentTextValue = currentTextRef.current;
-    const textDiff = Math.abs(currentTextValue.length - lastAnalyzedTextRef.current.length);
+    const lastTextValue = lastAnalyzedTextRef.current;
 
-    // Only analyze if text changed by >10 characters
-    if (textDiff <= 10) {
+    const currentWeight = getWeightedLength(currentTextValue);
+    const lastWeight = getWeightedLength(lastTextValue);
+    const weightDiff = Math.abs(currentWeight - lastWeight);
+
+    // Only analyze if text changed by >40 weight
+    // (~40 English chars OR ~13 Chinese chars OR mixed)
+    if (weightDiff <= 40) {
       return;
     }
 
@@ -98,7 +126,7 @@ function App() {
     lastAnalyzedTextRef.current = currentTextValue;
 
     try {
-      console.log(`🔍 Calling backend analysis (${textDiff} chars changed)...`);
+      console.log(`🔍 Calling backend analysis (${weightDiff} weight units changed)...`);
       const backendVoices = await analyzeText(currentTextValue, sessionId);
       console.log(`✅ Got ${backendVoices.length} voices from backend`);
 

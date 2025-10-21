@@ -5,4 +5,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/ink-and-memory/',  // Deploy at lexicalmathical.com/ink-and-memory/
+  server: {
+    proxy: {
+      '/ink-and-memory/api': {
+        target: 'http://localhost:8765',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ink-and-memory/, '')
+      }
+    }
+  }
 })

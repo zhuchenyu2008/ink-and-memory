@@ -44,9 +44,9 @@ class StatefulVoiceAnalyzer:
 
     def _get_sentences(self, text: str) -> list[str]:
         """Split text into sentences (supports English and Chinese)."""
-        # @@@ multilingual-sentence-split - English: .!? Chinese: 。！？
+        # @@@ multilingual-sentence-split - English: .!? Chinese: 。！？，
         # Also treat newlines as sentence boundaries
-        sentences = re.split(r'[.!?。！？]+|\n+', text)
+        sentences = re.split(r'[.!?。！？，]+|\n+', text)
         return [s.strip() for s in sentences if s.strip()]
 
     def _get_commented_regions(self, text: str) -> list[tuple[int, int]]:
@@ -69,8 +69,7 @@ class StatefulVoiceAnalyzer:
     def _enforce_density(self, new_comments: list[dict], text: str) -> list[dict]:
         """
         Enforce density rules:
-        1. Max 1 comment per persona across whole text
-        2. Max 1 persona per sentence
+        1. Max 1 persona per sentence
         """
         # Get sentence boundaries
         sentences = self._get_sentences(text)
@@ -81,9 +80,6 @@ class StatefulVoiceAnalyzer:
             if start != -1:
                 sentence_positions.append((start, start + len(sent), sent))
                 pos = start + len(sent)
-
-        # Track which personas are already used
-        used_personas = {c["voice"] for c in self.comments}
 
         # Track which sentences have comments
         sentence_has_comment = [False] * len(sentence_positions)
@@ -101,11 +97,7 @@ class StatefulVoiceAnalyzer:
             voice = comment["voice"]
             phrase = comment["phrase"]
 
-            # Rule 1: Only 1 comment per persona
-            if voice in used_personas:
-                continue
-
-            # Rule 2: Only 1 comment per sentence
+            # Rule: Only 1 comment per sentence
             phrase_pos = text.lower().find(phrase.lower())
             if phrase_pos == -1:
                 continue
@@ -122,14 +114,13 @@ class StatefulVoiceAnalyzer:
 
             # Accept this comment
             filtered.append(comment)
-            used_personas.add(voice)
             if comment_sentence_idx is not None:
                 sentence_has_comment[comment_sentence_idx] = True
 
         return filtered
 
     @pattern
-    def analyze(self, agent: PolyAgent, text: str) -> list[dict]:
+    def analyze(self, agent: PolyAgent, text: str, voices: dict = None) -> list[dict]:
         """
         Analyze text and return ALL comments (existing + new).
 
@@ -157,16 +148,15 @@ class StatefulVoiceAnalyzer:
             print("⏭️  Text too short, returning existing comments")
             return self.comments
 
-        # Check if text changed significantly
-        text_diff = abs(len(text) - len(self.last_text))
-        if text_diff < 10 and self.comments:
-            print(f"⏭️  Text change too small ({text_diff} chars), returning existing")
-            return self.comments
+        # @@@ Removed debouncing - allow multiple LLM calls on same text
+        # This enables energy pool to trigger multiple times and get different comments
+        # The LLM prompt includes existing comments, so it will return new ones
 
         # Step 3: Build prompt with existing comments
+        voice_archetypes = voices or config.VOICE_ARCHETYPES
         voice_list = "\n".join([
             f"- {name} ({v['icon']}, {v['color']}): {v['tagline']}"
-            for name, v in config.VOICE_ARCHETYPES.items()
+            for name, v in voice_archetypes.items()
         ])
 
         # @@@ Build list of occupied sentences AND used personas to guide LLM
@@ -192,15 +182,8 @@ class StatefulVoiceAnalyzer:
                             occupied_sentences.add(i)
                             break
 
-            # Build summary with used personas and occupied sentences
-            used_personas = {c['voice'] for c in self.comments}
-
-            existing_summary = "\n\n⚠️  ALREADY USED PERSONAS (DO NOT USE THESE AGAIN - each persona can only appear ONCE):\n"
-            for persona in sorted(used_personas):
-                existing_summary += f"  - {persona}\n"
-            existing_summary += "👉 You MUST choose a persona that is NOT in the list above!\n"
-
-            existing_summary += "\n\nEXISTING COMMENTS:\n"
+            # Build summary with occupied sentences
+            existing_summary = "\n\nEXISTING COMMENTS:\n"
             for c in self.comments:
                 existing_summary += f"- {c['voice']} commented on phrase \"{c['phrase']}\": {c['comment']}\n"
 
@@ -301,6 +284,15 @@ IMPORTANT:
 
         print(f"✅ LLM returned {len(new_voices)} new comments")
 
+        # @@@ Override LLM's icon/color with actual config values, and use user-friendly name
+        for v in new_voices:
+            if v and v.get("voice") in voice_archetypes:
+                archetype_key = v["voice"]
+                v["icon"] = voice_archetypes[archetype_key]["icon"]
+                v["color"] = voice_archetypes[archetype_key]["color"]
+                # Replace key with user-friendly name (e.g., "Composure" -> "另一个我")
+                v["voice"] = voice_archetypes[archetype_key].get("name", archetype_key)
+
         # Step 4: Enforce density rules
         filtered_voices = self._enforce_density(new_voices, text)
         print(f"📏 After density filter: {len(filtered_voices)} comments")
@@ -351,10 +343,10 @@ def get_analyzer(session_id: str) -> StatefulVoiceAnalyzer:
 
     return _user_analyzers[session_id]
 
-def analyze_stateful(agent: PolyAgent, text: str, session_id: str) -> list[dict]:
+def analyze_stateful(agent: PolyAgent, text: str, session_id: str, voices: dict = None) -> list[dict]:
     """Analyze text using session-isolated analyzer."""
     # Cleanup stale sessions before processing
     cleanup_stale_sessions()
 
     analyzer = get_analyzer(session_id)
-    return analyzer.analyze(agent, text)
+    return analyzer.analyze(agent, text, voices)

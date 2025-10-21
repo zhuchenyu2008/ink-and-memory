@@ -5,6 +5,14 @@
 // nginx proxies /ink-and-memory/api/* to backend (8765)
 const API_BASE = '/ink-and-memory';
 
+/**
+ * Get default voices from backend
+ */
+export async function getDefaultVoices(): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/default-voices`);
+  return await response.json();
+}
+
 interface TriggerResponse {
   success: boolean;
   exec_id: string;
@@ -29,14 +37,14 @@ interface StatusResponse {
 /**
  * Trigger voice analysis session
  */
-export async function triggerAnalysis(text: string, sessionId: string): Promise<string> {
+export async function triggerAnalysis(text: string, sessionId: string, voices?: any): Promise<string> {
   console.log('📤 Sending trigger request...');
   const response = await fetch(`${API_BASE}/api/trigger`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       session_id: 'analyze_text',
-      params: { text, session_id: sessionId }
+      params: { text, session_id: sessionId, voices }
     })
   });
 
@@ -88,8 +96,8 @@ export async function getAnalysisResult(exec_id: string): Promise<StatusResponse
 /**
  * Analyze text and return voices (all-in-one)
  */
-export async function analyzeText(text: string, sessionId: string) {
-  const exec_id = await triggerAnalysis(text, sessionId);
+export async function analyzeText(text: string, sessionId: string, voices?: any) {
+  const exec_id = await triggerAnalysis(text, sessionId, voices);
   const result = await getAnalysisResult(exec_id);
   return result?.voices || [];
 }

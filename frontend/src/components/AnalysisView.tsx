@@ -4,11 +4,11 @@ export default function AnalysisView() {
   const [currentPage, setCurrentPage] = useState(0);
 
   const pages = [
-    { id: 0, name: '行动建议' },
-    { id: 1, name: '行为模式分析' },
-    { id: 2, name: '性格特征分析' },
-    { id: 3, name: '重复话题' },
-    { id: 4, name: '日记库问答' }
+    { id: 0, name: 'Adventure' },
+    { id: 1, name: 'Patterns' },
+    { id: 2, name: 'Traits' },
+    { id: 3, name: 'Echoes' },
+    { id: 4, name: 'Ask Away' }
   ];
 
   return (
@@ -76,12 +76,12 @@ export default function AnalysisView() {
 // Page 0: Sticky notes with actionable nudges
 function Page0StickyNotes() {
   const notes = [
-    { text: '找一个朋友聊某个话题', color: '#FFF9BE', rotation: -2 },
-    { text: '写程序前在纸上写五分钟', color: '#D4EAF1', rotation: 1 },
-    { text: '重新读一遍你刚写的文字', color: '#F1D4D4', rotation: -1 },
-    { text: '给这段文字起个标题', color: '#FFF9BE', rotation: 2 },
-    { text: '那个简单的 loop，再看一眼', color: '#D4EAF1', rotation: -3 },
-    { text: '试着把这段话说给自己听', color: '#F1D4D4', rotation: 1 }
+    { text: '下次点咖啡，试试菜单上从没点过的那一个。', color: '#FFF9BE', rotation: -2 },
+    { text: '给一个很久没联系的人发条消息，就说"想起你了"。', color: '#D4EAF1', rotation: 1 },
+    { text: '今天走不同的路回家，哪怕只是换一条街。', color: '#F1D4D4', rotation: -1 },
+    { text: '在电梯里和陌生人说句话，比如"今天天气不错"。', color: '#FFF9BE', rotation: 2 },
+    { text: '把一件拖了很久的小事做掉，5 分钟就够了。', color: '#D4EAF1', rotation: -3 },
+    { text: '闭上眼睛吃一口东西，专注地感受味道。', color: '#F1D4D4', rotation: 1 }
   ];
 
   return (

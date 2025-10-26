@@ -62,9 +62,6 @@ export default function AgentDropdown({ voices, position, onSelect, onClose }: A
     const container = containerRef.current;
 
     if (selectedItem && container) {
-      const itemRect = selectedItem.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-
       // Calculate positions relative to container
       const itemTop = selectedItem.offsetTop;
       const itemBottom = itemTop + selectedItem.offsetHeight;

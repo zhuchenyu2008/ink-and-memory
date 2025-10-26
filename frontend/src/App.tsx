@@ -5,8 +5,7 @@ import { ChatWidget } from './engine/ChatWidget';
 import type { ChatWidgetData } from './engine/ChatWidget';
 import './App.css';
 import {
-  FaSync, FaBold, FaItalic, FaUnderline, FaAlignLeft, FaAlignCenter,
-  FaAlignRight, FaListUl, FaListOl, FaQuoteRight, FaTable, FaLink, FaImage,
+  FaSync,
   FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye,
   FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass
 } from 'react-icons/fa';
@@ -983,7 +982,6 @@ export default function App() {
                       const textCell = cell as TextCell;
                       // Use local text if available, otherwise use engine state
                       const content = localTexts.get(cell.id) ?? textCell.content;
-                      const lineCount = Math.max(content.split('\n').length, 1);
 
                       return (
                         <div key={cell.id} style={{ position: 'relative' }}>

@@ -152,7 +152,7 @@ export class EditorEngine {
   }
 
   // @@@ Check if we should send text for analysis
-  private checkAnalysisTrigger(text: string, currentEnergy: number) {
+  private checkAnalysisTrigger(text: string, _currentEnergy: number) {
     const completedSentences = getCompletedSentences(text);
 
     // Skip if no completed sentences or already requesting

@@ -1,6 +1,6 @@
 interface Props {
-  currentView: 'writing' | 'settings' | 'calendar' | 'analysis' | 'about';
-  onViewChange: (view: 'writing' | 'settings' | 'calendar' | 'analysis' | 'about') => void;
+  currentView: 'writing' | 'settings' | 'collections' | 'analysis' | 'about';
+  onViewChange: (view: 'writing' | 'settings' | 'collections' | 'analysis' | 'about') => void;
 }
 
 export default function LeftSidebar({ currentView, onViewChange }: Props) {
@@ -93,21 +93,21 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
         </button>
 
         <button
-          onClick={() => onViewChange('calendar')}
-          style={buttonStyle(currentView === 'calendar')}
-          title="Calendar"
+          onClick={() => onViewChange('collections')}
+          style={buttonStyle(currentView === 'collections')}
+          title="Collections"
           onMouseEnter={e => {
-            if (currentView !== 'calendar') {
+            if (currentView !== 'collections') {
               e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
             }
           }}
           onMouseLeave={e => {
-            if (currentView !== 'calendar') {
+            if (currentView !== 'collections') {
               e.currentTarget.style.background = 'transparent';
             }
           }}
         >
-          Calendar
+          Collections
         </button>
 
         <button

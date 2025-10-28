@@ -9,6 +9,7 @@ export interface EditorState {
   tasks: Task[];
   weightPath: WeightEntry[];
   sessionId: string;
+  currentEntryId?: string;  // Track which calendar entry is being edited (for overwrite on save)
 }
 
 export type Cell = TextCell | WidgetCell;
@@ -26,6 +27,12 @@ export interface WidgetCell {
   data: any;  // Widget-specific data
 }
 
+export interface ChatMessage {
+  role: 'assistant' | 'user';
+  content: string;
+  timestamp: number;
+}
+
 export interface Commentor {
   id: string;
   phrase: string;       // Highlighted phrase
@@ -36,6 +43,8 @@ export interface Commentor {
   appliedAt?: number;   // Timestamp when applied (if applied)
   computedAt: number;   // Timestamp when computed
   textSnapshot: string; // Text at computation time
+  chatHistory?: ChatMessage[];  // Conversation with this comment
+  feedback?: 'star' | 'kill';   // User feedback
 }
 
 export interface Task {
@@ -580,6 +589,12 @@ export class EditorEngine {
     this.notifyChange();
   }
 
+  // @@@ Set current entry ID (for calendar overwrite tracking)
+  setCurrentEntryId(entryId: string | undefined) {
+    this.state.currentEntryId = entryId;
+    this.notifyChange();
+  }
+
   // @@@ Delete a cell by ID
   deleteCell(cellId: string) {
     const cellIndex = this.state.cells.findIndex(c => c.id === cellId);
@@ -596,6 +611,43 @@ export class EditorEngine {
     this.mergeConsecutiveTextCells();
 
     this.notifyChange();
+  }
+
+  // @@@ Add a message to a comment's chat history
+  addCommentChatMessage(commentId: string, role: 'assistant' | 'user', content: string) {
+    const comment = this.state.commentors.find(c => c.id === commentId);
+    if (!comment) return;
+
+    if (!comment.chatHistory) {
+      // Initialize with the original comment as first assistant message
+      comment.chatHistory = [{
+        role: 'assistant',
+        content: comment.comment,
+        timestamp: comment.computedAt
+      }];
+    }
+
+    comment.chatHistory.push({
+      role,
+      content,
+      timestamp: Date.now()
+    });
+
+    this.notifyChange();
+  }
+
+  // @@@ Set feedback for a comment
+  setCommentFeedback(commentId: string, feedback: 'star' | 'kill') {
+    const comment = this.state.commentors.find(c => c.id === commentId);
+    if (!comment) return;
+
+    comment.feedback = feedback;
+    this.notifyChange();
+  }
+
+  // @@@ Get comment by ID
+  getComment(commentId: string): Commentor | undefined {
+    return this.state.commentors.find(c => c.id === commentId);
   }
 }
 

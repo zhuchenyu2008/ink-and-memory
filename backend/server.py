@@ -160,6 +160,153 @@ def analyze_text(text: str, session_id: str, voices: dict = None, applied_commen
         "status": "completed"
     }
 
+@session_def(
+    name="Analyze Echoes",
+    description="Find recurring themes and topics in all user notes",
+    params={
+        "all_notes": {"type": "str"}
+    },
+    category="Analysis"
+)
+def analyze_echoes(all_notes: str):
+    """Analyze recurring themes and topics across all notes."""
+    print(f"\n{'='*60}")
+    print(f"🔄 analyze_echoes() called")
+    print(f"   Notes length: {len(all_notes)} chars")
+    print(f"{'='*60}\n")
+
+    agent = PolyAgent(id="echoes-analyzer")
+
+    prompt = f"""Analyze these personal notes and identify recurring themes, topics, or concerns that keep appearing.
+
+Notes:
+---
+{all_notes}
+---
+
+Find 3-5 echoes (recurring themes) that appear across different entries. For each echo:
+- Give it a short title (2-4 words)
+- Explain what pattern you see
+- Quote 2-3 specific examples from the notes
+
+Format as a JSON array:
+[
+  {{"title": "...", "description": "...", "examples": ["quote1", "quote2", "quote3"]}},
+  ...
+]
+
+Return ONLY the JSON array, no other text."""
+
+    result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
+
+    if not result.is_success or not result.content:
+        return {"echoes": []}
+
+    try:
+        import json
+        echoes = json.loads(result.content.strip())
+        return {"echoes": echoes}
+    except:
+        return {"echoes": []}
+
+@session_def(
+    name="Analyze Traits",
+    description="Identify personality traits and characteristics from user notes",
+    params={
+        "all_notes": {"type": "str"}
+    },
+    category="Analysis"
+)
+def analyze_traits(all_notes: str):
+    """Analyze personality traits from all notes."""
+    print(f"\n{'='*60}")
+    print(f"👤 analyze_traits() called")
+    print(f"   Notes length: {len(all_notes)} chars")
+    print(f"{'='*60}\n")
+
+    agent = PolyAgent(id="traits-analyzer")
+
+    prompt = f"""Analyze these personal notes and identify personality traits and characteristics.
+
+Notes:
+---
+{all_notes}
+---
+
+Identify 4-6 personality traits that are evident from the writing. For each trait:
+- Give it a name (1-2 words)
+- Rate the strength (1-5)
+- Explain why you see this trait with specific examples
+
+Format as a JSON array:
+[
+  {{"trait": "...", "strength": 4, "evidence": "..."}},
+  ...
+]
+
+Return ONLY the JSON array, no other text."""
+
+    result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
+
+    if not result.is_success or not result.content:
+        return {"traits": []}
+
+    try:
+        import json
+        traits = json.loads(result.content.strip())
+        return {"traits": traits}
+    except:
+        return {"traits": []}
+
+@session_def(
+    name="Analyze Patterns",
+    description="Identify behavioral patterns and habits from user notes",
+    params={
+        "all_notes": {"type": "str"}
+    },
+    category="Analysis"
+)
+def analyze_patterns(all_notes: str):
+    """Analyze behavioral patterns from all notes."""
+    print(f"\n{'='*60}")
+    print(f"🔍 analyze_patterns() called")
+    print(f"   Notes length: {len(all_notes)} chars")
+    print(f"{'='*60}\n")
+
+    agent = PolyAgent(id="patterns-analyzer")
+
+    prompt = f"""Analyze these personal notes and identify behavioral patterns or habits.
+
+Notes:
+---
+{all_notes}
+---
+
+Identify 3-5 behavioral patterns or habits. For each pattern:
+- Give it a descriptive name
+- Describe the pattern
+- Note the frequency/context when it appears
+
+Format as a JSON array:
+[
+  {{"pattern": "...", "description": "...", "frequency": "..."}},
+  ...
+]
+
+Return ONLY the JSON array, no other text."""
+
+    result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
+
+    if not result.is_success or not result.content:
+        return {"patterns": []}
+
+    try:
+        import json
+        patterns = json.loads(result.content.strip())
+        return {"patterns": patterns}
+    except:
+        return {"patterns": []}
+
 if __name__ == "__main__":
     # Get the global registry
     registry = get_registry()

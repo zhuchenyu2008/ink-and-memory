@@ -12,7 +12,9 @@ import {
 } from 'react-icons/fa';
 import LeftSidebar from './components/LeftSidebar';
 import VoiceSettings from './components/VoiceSettings';
-import CalendarView from './components/CalendarView';
+import CalendarPopup from './components/CalendarPopup';
+import { saveEntryToToday, type CalendarEntry } from './utils/calendarStorage';
+import CollectionsView from './components/CollectionsView';
 import AnalysisView from './components/AnalysisView';
 import AboutView from './components/AboutView';
 import AgentDropdown from './components/AgentDropdown';
@@ -22,17 +24,22 @@ import type { VoiceConfig } from './types/voice';
 import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
 import { getDefaultVoices, chatWithVoice } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
+import { CommentGroupCard } from './components/CommentCard';
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
 function LeftToolbar({
   onStartFresh,
   onInsertAgent,
   onToggleAlign,
+  onShowCalendar,
+  onSaveToday,
   isAligned
 }: {
   onStartFresh: () => void;
   onInsertAgent: () => void;
   onToggleAlign: () => void;
+  onShowCalendar: () => void;
+  onSaveToday: () => void;
   isAligned: boolean;
 }) {
   return (
@@ -51,6 +58,68 @@ function LeftToolbar({
       padding: '10px 0',
       gap: '4px'
     }}>
+      {/* Calendar button - first */}
+      <button
+        onClick={onShowCalendar}
+        title="Calendar"
+        style={{
+          width: '36px',
+          height: '36px',
+          border: 'none',
+          borderRadius: '4px',
+          backgroundColor: '#fff',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#f0f0f0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = '#fff';
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+      </button>
+
+      {/* Save button - second */}
+      <button
+        onClick={onSaveToday}
+        title="Save"
+        style={{
+          width: '36px',
+          height: '36px',
+          border: 'none',
+          borderRadius: '4px',
+          backgroundColor: '#fff',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#f0f0f0';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = '#fff';
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+          <polyline points="17 21 17 13 7 13 7 21"></polyline>
+          <polyline points="7 3 7 8 15 8"></polyline>
+        </svg>
+      </button>
+
+      {/* Start Fresh button - third */}
       <button
         onClick={onStartFresh}
         title="Start Fresh"
@@ -76,6 +145,7 @@ function LeftToolbar({
         <FaSync size={18} color="#333" />
       </button>
 
+      {/* Insert Agent button - fourth */}
       <button
         onClick={onInsertAgent}
         title="Insert Agent Chat"
@@ -105,6 +175,7 @@ function LeftToolbar({
         @
       </button>
 
+      {/* Align button - last */}
       <button
         onClick={onToggleAlign}
         title={isAligned ? "Unalign Comments" : "Align Comments Right"}
@@ -178,111 +249,11 @@ const colorMap: Record<string, { gradient: string; text: string; glow: string }>
   },
 };
 
-// @@@ Group Comment Card Component
-function CommentGroupCard({
-  comments,
-  currentIndex,
-  onNavigate,
-  position
-}: {
-  comments: Commentor[];
-  currentIndex: number;
-  onNavigate: (index: number) => void;
-  position: { top: number; left: number };
-}) {
-  const [isHovered, setIsHovered] = React.useState(false);
-
-  if (comments.length === 0) return null;
-
-  const safeIndex = Math.min(Math.max(0, currentIndex), comments.length - 1);
-  const currentComment = comments[safeIndex];
-
-  if (!currentComment) return null;
-
-  const Icon = iconMap[currentComment.icon as keyof typeof iconMap] || FaBrain;
-  const colors = colorMap[currentComment.color] || colorMap.blue;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: `${position.top}px`,
-        left: `${position.left}px`,
-        transform: `translateY(-50%) ${isHovered ? 'scale(1.02)' : 'scale(1)'}`,
-        minWidth: '200px',
-        maxWidth: '600px',  // @@@ Increased from 400px to allow more expansion
-        minHeight: '54px',  // @@@ Changed from fixed height to minHeight for vertical expansion
-        padding: '8px 12px',
-        background: colors.gradient,
-        borderLeft: `2px solid ${colors.glow}`,
-        borderRadius: '4px',
-        fontSize: '13px',
-        lineHeight: '1.4',
-        zIndex: 10,
-        cursor: comments.length > 1 ? 'pointer' : 'default',
-        transition: 'all 0.2s ease',
-        fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif",
-        boxShadow: isHovered ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-        animation: 'slideInFromRight 0.3s ease-out',
-      }}
-      onClick={() => {
-        if (comments.length > 1) {
-          onNavigate((safeIndex + 1) % comments.length);
-        }
-      }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div style={{
-        display: 'flex',
-        gap: '10px',
-        alignItems: 'flex-start'  // @@@ Changed from 'center' to align top for multi-line text
-      }}>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'flex-start',  // @@@ Changed from 'center' to top-align with text
-          flexShrink: 0,
-          width: '24px',
-          paddingTop: '2px'  // @@@ Slight padding to align icon with first line
-        }}>
-          <Icon size={15} color={colors.text} style={{ opacity: 0.75 }} />
-          {comments.length > 1 && (
-            <span style={{
-              fontSize: '8px',
-              color: colors.text,
-              opacity: 0.5,
-              marginTop: '1px',
-              fontWeight: 500
-            }}>
-              {safeIndex + 1}/{comments.length}
-            </span>
-          )}
-        </div>
-
-        <div style={{
-          flex: 1,
-          color: colors.text,
-          opacity: 0.85,
-          wordWrap: 'break-word',  // @@@ Allow text to wrap instead of ellipsis
-          overflowWrap: 'break-word',
-          display: '-webkit-box',
-          WebkitLineClamp: 3,  // @@@ Limit to 3 lines
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden'
-        }}>
-          <strong style={{ fontWeight: 600 }}>{currentComment.voice}:</strong> {currentComment.comment}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // @@@ Main App Component
 export default function App() {
   const isMobile = useMobile();
-  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'calendar' | 'analysis' | 'about'>('writing');
+  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'collections' | 'analysis' | 'about'>('writing');
+  const [showCalendarPopup, setShowCalendarPopup] = useState(false);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
   const [defaultVoiceConfigs, setDefaultVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
 
@@ -322,6 +293,10 @@ export default function App() {
 
   // @@@ Comment alignment state
   const [commentsAligned, setCommentsAligned] = useState(false);
+
+  // @@@ Comment expansion state (for action toolbar + chat dropdown)
+  const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
+  const [commentChatProcessing, setCommentChatProcessing] = useState<Set<string>>(new Set());
 
   // @@@ Reset refs ready flag when returning to writing view
   useEffect(() => {
@@ -565,12 +540,22 @@ export default function App() {
   }, [commentGroups]);
 
   const handleGroupNavigate = useCallback((groupKey: string, newIndex: number) => {
+    const group = commentGroups.get(groupKey);
+    if (!group) return;
+
     setGroupPages(prev => {
       const next = new Map(prev);
       next.set(groupKey, newIndex);
       return next;
     });
-  }, []);
+
+    // @@@ Update expanded comment ID ONLY if something in this group is already expanded
+    // This keeps the card expanded while switching between comments
+    const anyExpanded = group.comments.some(c => c.id === expandedCommentId);
+    if (anyExpanded && group.comments[newIndex]) {
+      setExpandedCommentId(group.comments[newIndex].id);
+    }
+  }, [commentGroups, expandedCommentId]);
 
   // @@@ Cursor-based comment navigation (per-cell)
   useEffect(() => {
@@ -610,7 +595,7 @@ export default function App() {
 
     if (!foundComment) return;
 
-    // Desktop: Find the group key for this cell and navigate to the comment
+    // @@@ Desktop: Navigate to comment at cursor position
     if (!isMobile) {
       commentGroups.forEach((group, groupKey) => {
         // Only update groups in the current cell
@@ -618,6 +603,10 @@ export default function App() {
 
         const commentIndex = group.comments.findIndex(c => c.id === foundComment!.id);
         if (commentIndex !== -1) {
+          // Don't navigate if a comment in this group is expanded
+          const groupHasExpanded = group.comments.some(c => c.id === expandedCommentId);
+          if (groupHasExpanded) return;
+
           setGroupPages(prev => {
             const next = new Map(prev);
             if (next.get(groupKey) !== commentIndex) {
@@ -628,7 +617,7 @@ export default function App() {
         }
       });
     }
-  }, [cursorPosition, cursorCellId, state, commentGroups, isMobile]);
+  }, [cursorPosition, cursorCellId, state, commentGroups, isMobile, expandedCommentId]);
 
   // @@@ Per-cell text change handler
   const handleTextChange = useCallback((cellId: string, newText: string) => {
@@ -711,6 +700,48 @@ export default function App() {
     window.location.reload();
   }, []);
 
+  const handleSaveToday = useCallback(() => {
+    if (!state || !engineRef.current) return;
+
+    // Save and get the entry ID (either new or overwritten)
+    const entryId = saveEntryToToday(state);
+
+    // Update current entry ID in engine state
+    engineRef.current.setCurrentEntryId(entryId);
+
+    // Show toast notification
+    const toast = document.createElement('div');
+    toast.textContent = state.currentEntryId ? 'Saved (updated)' : 'Saved';
+    toast.style.cssText = `
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      background: #4CAF50;
+      color: white;
+      padding: 12px 20px;
+      borderRadius: 6px;
+      fontSize: 14px;
+      fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+      zIndex: 10000;
+      boxShadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s';
+      setTimeout(() => document.body.removeChild(toast), 300);
+    }, 2000);
+  }, [state]);
+
+  const handleLoadEntry = useCallback((entry: CalendarEntry) => {
+    if (engineRef.current) {
+      engineRef.current.loadState(entry.state);
+      // Set the current entry ID so subsequent saves will overwrite this entry
+      engineRef.current.setCurrentEntryId(entry.id);
+      setShowCalendarPopup(false);
+    }
+  }, []);
+
   const handleStateChoose = useCallback((stateId: string) => {
     setSelectedState(stateId);
     localStorage.setItem('selected-state', stateId);
@@ -759,6 +790,79 @@ export default function App() {
   const handleToggleAlign = useCallback(() => {
     setCommentsAligned(prev => !prev);
   }, []);
+
+  // @@@ Comment interaction handlers
+  const handleCommentStar = useCallback((commentId: string) => {
+    if (!engineRef.current) return;
+    const comment = engineRef.current.getComment(commentId);
+    if (!comment) return;
+
+    // Toggle star (if already starred, unstar)
+    const newFeedback = comment.feedback === 'star' ? undefined : 'star';
+    engineRef.current.setCommentFeedback(commentId, newFeedback as any);
+  }, []);
+
+  const handleCommentKill = useCallback((commentId: string) => {
+    if (!engineRef.current) return;
+    engineRef.current.setCommentFeedback(commentId, 'kill');
+    // Close expansion after killing
+    setExpandedCommentId(null);
+  }, []);
+
+  const handleCommentChatSend = useCallback(async (commentId: string, message: string) => {
+    if (!engineRef.current || !state) return;
+
+    const comment = engineRef.current.getComment(commentId);
+    if (!comment) return;
+
+    // Add user message immediately
+    engineRef.current.addCommentChatMessage(commentId, 'user', message);
+    setCommentChatProcessing(prev => new Set(prev).add(commentId));
+
+    try {
+      // Get all text from text cells
+      const allText = state.cells
+        .filter(c => c.type === 'text')
+        .map(c => (c as TextCell).content)
+        .join('');
+
+      // Get the voice config for this comment
+      const voiceConfig = voiceConfigs[comment.voice];
+      if (!voiceConfig) {
+        throw new Error(`Voice config not found for ${comment.voice}`);
+      }
+
+      // Get conversation history (excluding the message we just added)
+      const chatHistory = comment.chatHistory?.slice(0, -1) || [];
+
+      const metaPrompt = getMetaPrompt();
+      const statePrompt = selectedState && stateConfig.states[selectedState]
+        ? stateConfig.states[selectedState].prompt
+        : '';
+
+      const response = await chatWithVoice(
+        comment.voice,
+        voiceConfig,
+        chatHistory,
+        message,
+        allText,
+        metaPrompt,
+        statePrompt
+      );
+
+      // Add assistant response
+      engineRef.current.addCommentChatMessage(commentId, 'assistant', response);
+    } catch (error) {
+      console.error('Comment chat failed:', error);
+      engineRef.current.addCommentChatMessage(commentId, 'assistant', 'Sorry, I encountered an error.');
+    } finally {
+      setCommentChatProcessing(prev => {
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
+      });
+    }
+  }, [state, voiceConfigs, selectedState, stateConfig]);
 
   // @@@ Handle @ key press for agent dropdown
   const handleKeyDown = useCallback((cellId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -994,6 +1098,8 @@ export default function App() {
                 onStartFresh={handleStartFresh}
                 onInsertAgent={handleInsertAgent}
                 onToggleAlign={handleToggleAlign}
+                onShowCalendar={() => setShowCalendarPopup(true)}
+                onSaveToday={handleSaveToday}
                 isAligned={commentsAligned}
               />
             </div>
@@ -1227,19 +1333,42 @@ export default function App() {
                   // - cellOffsetTop: position relative to content container
                   // - 20px: scroll container padding (line 1028)
                   // - 24px: StateChooser marginBottom (line 1036)
-                  // - subtract 0.7 lineHeight: fine-tune vertical alignment
-                  const topPosition = cellOffsetTop + group.centerY + 20 + 24 - (lineHeight * 0.7);
+                  // - subtract lineHeight: move up to top of 2-line block
+                  const topPosition = cellOffsetTop + group.centerY + 20 + 24 - lineHeight * 2;
+
+                  // @@@ If expanded, use the expanded comment ID (stable), otherwise use current index
+                  const isExpanded = group.comments.some(c => c.id === expandedCommentId);
+                  const displayedComment = isExpanded
+                    ? group.comments.find(c => c.id === expandedCommentId)!
+                    : group.comments[currentIndex];
+                  const displayedIndex = isExpanded
+                    ? group.comments.findIndex(c => c.id === expandedCommentId)
+                    : currentIndex;
+
+                  if (!displayedComment) return null;
 
                   return (
                     <CommentGroupCard
                       key={groupKey}
                       comments={group.comments}
-                      currentIndex={currentIndex}
+                      currentIndex={displayedIndex}
                       onNavigate={(idx) => handleGroupNavigate(groupKey, idx)}
                       position={{
                         top: topPosition,
                         left: leftPosition
                       }}
+                      isExpanded={isExpanded}
+                      onToggleExpand={() => {
+                        setExpandedCommentId(prev => {
+                          const anyExpanded = group.comments.some(c => c.id === prev);
+                          if (anyExpanded) return null;
+                          return displayedComment.id;
+                        });
+                      }}
+                      onStar={() => handleCommentStar(displayedComment.id)}
+                      onKill={() => handleCommentKill(displayedComment.id)}
+                      onSendChatMessage={(msg) => handleCommentChatSend(displayedComment.id, msg)}
+                      isChatProcessing={commentChatProcessing.has(displayedComment.id)}
                     />
                     );
                   });
@@ -1339,7 +1468,7 @@ export default function App() {
           />
         </div>
       )}
-      {currentView === 'calendar' && (
+      {currentView === 'collections' && (
         <div style={{
           position: 'fixed',
           top: 48,
@@ -1350,7 +1479,7 @@ export default function App() {
           display: 'flex',
           overflow: 'hidden'
         }}>
-          <CalendarView />
+          <CollectionsView />
         </div>
       )}
       {currentView === 'analysis' && (
@@ -1474,6 +1603,14 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Calendar Popup */}
+      {showCalendarPopup && (
+        <CalendarPopup
+          onLoadEntry={handleLoadEntry}
+          onClose={() => setShowCalendarPopup(false)}
+        />
       )}
     </>
   );

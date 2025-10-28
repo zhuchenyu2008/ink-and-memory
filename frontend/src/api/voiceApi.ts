@@ -33,6 +33,9 @@ interface StatusResponse {
     status?: string;
     response?: string;  // For chat responses
     voice_name?: string;  // For chat responses
+    echoes?: any[];  // For echoes analysis
+    traits?: any[];  // For traits analysis
+    patterns?: any[];  // For patterns analysis
   };
   error?: string;
 }
@@ -153,4 +156,76 @@ export async function chatWithVoice(
   console.log('✅ Got chat response:', result);
 
   return result?.response || 'Sorry, I could not respond.';
+}
+
+/**
+ * Analyze echoes (recurring themes) from all notes
+ */
+export async function analyzeEchoes(allNotes: string): Promise<any[]> {
+  console.log('🔄 Sending echoes analysis request...');
+
+  const response = await fetch(`${API_BASE}/api/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: 'analyze_echoes',
+      params: { all_notes: allNotes }
+    })
+  });
+
+  const data: TriggerResponse = await response.json();
+  if (!data.success) {
+    throw new Error('Failed to trigger echoes analysis');
+  }
+
+  const result = await getAnalysisResult(data.exec_id);
+  return result?.echoes || [];
+}
+
+/**
+ * Analyze traits (personality characteristics) from all notes
+ */
+export async function analyzeTraits(allNotes: string): Promise<any[]> {
+  console.log('👤 Sending traits analysis request...');
+
+  const response = await fetch(`${API_BASE}/api/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: 'analyze_traits',
+      params: { all_notes: allNotes }
+    })
+  });
+
+  const data: TriggerResponse = await response.json();
+  if (!data.success) {
+    throw new Error('Failed to trigger traits analysis');
+  }
+
+  const result = await getAnalysisResult(data.exec_id);
+  return result?.traits || [];
+}
+
+/**
+ * Analyze patterns (behavioral patterns) from all notes
+ */
+export async function analyzePatterns(allNotes: string): Promise<any[]> {
+  console.log('🔍 Sending patterns analysis request...');
+
+  const response = await fetch(`${API_BASE}/api/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: 'analyze_patterns',
+      params: { all_notes: allNotes }
+    })
+  });
+
+  const data: TriggerResponse = await response.json();
+  if (!data.success) {
+    throw new Error('Failed to trigger patterns analysis');
+  }
+
+  const result = await getAnalysisResult(data.exec_id);
+  return result?.patterns || [];
 }

@@ -1,15 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getCalendarData } from '../utils/calendarStorage';
+import { analyzeEchoes, analyzeTraits, analyzePatterns } from '../api/voiceApi';
+import type { TextCell } from '../engine/EditorEngine';
 
 export default function AnalysisView() {
   const [currentPage, setCurrentPage] = useState(0);
+  const [allNotes, setAllNotes] = useState('');
 
   const pages = [
     { id: 0, name: 'Adventure' },
     { id: 1, name: 'Patterns' },
     { id: 2, name: 'Traits' },
-    { id: 3, name: 'Echoes' },
-    { id: 4, name: 'Ask Away' }
+    { id: 3, name: 'Echoes' }
   ];
+
+  // Collect all notes when component mounts
+  useEffect(() => {
+    const calendarData = getCalendarData();
+    const notes: string[] = [];
+
+    // Collect all text from all entries
+    Object.keys(calendarData).forEach(dateKey => {
+      calendarData[dateKey].forEach(entry => {
+        entry.state.cells
+          .filter(cell => cell.type === 'text')
+          .forEach(cell => {
+            const content = (cell as TextCell).content.trim();
+            if (content) {
+              notes.push(content);
+            }
+          });
+      });
+    });
+
+    setAllNotes(notes.join('\n\n'));
+  }, []);
 
   return (
     <div style={{
@@ -68,10 +93,9 @@ export default function AnalysisView() {
         background: '#f8f0e6'
       }}>
         {currentPage === 0 && <Page0StickyNotes />}
-        {currentPage === 1 && <PlaceholderPage title="行为模式分析" />}
-        {currentPage === 2 && <PlaceholderPage title="性格特征分析" />}
-        {currentPage === 3 && <PlaceholderPage title="重复出现的话题" />}
-        {currentPage === 4 && <Page4ChatQA />}
+        {currentPage === 1 && <PatternsPage allNotes={allNotes} />}
+        {currentPage === 2 && <TraitsPage allNotes={allNotes} />}
+        {currentPage === 3 && <EchoesPage allNotes={allNotes} />}
       </div>
     </div>
   );
@@ -99,29 +123,27 @@ function Page0StickyNotes() {
         <div
           key={index}
           style={{
-            width: 200,
-            height: 200,
             background: note.color,
             padding: '1.5rem',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+            borderRadius: '4px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
             transform: `rotate(${note.rotation}deg)`,
             transition: 'all 0.2s',
             cursor: 'pointer',
+            minHeight: '120px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             textAlign: 'center',
-            fontSize: '1.1rem',
-            lineHeight: 1.6,
-            color: '#333'
+            lineHeight: 1.6
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.transform = `rotate(${note.rotation}deg) scale(1.05)`;
-            e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.2)';
+            e.currentTarget.style.transform = `rotate(0deg) scale(1.05)`;
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.transform = `rotate(${note.rotation}deg)`;
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+            e.currentTarget.style.transform = `rotate(${note.rotation}deg) scale(1)`;
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
           }}
         >
           {note.text}
@@ -131,81 +153,408 @@ function Page0StickyNotes() {
   );
 }
 
-// Placeholder for pages 1-3
-function PlaceholderPage({ title }: { title: string }) {
+// @@@ Echoes Page - Recurring themes
+function EchoesPage({ allNotes }: { allNotes: string }) {
+  const [echoes, setEchoes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleAnalyze = async () => {
+    if (!allNotes.trim()) {
+      setError('No notes found. Save some entries first.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await analyzeEchoes(allNotes);
+      setEchoes(result);
+    } catch (e: any) {
+      setError(e.message || 'Analysis failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div style={{
-      padding: '4rem',
-      textAlign: 'center',
-      color: '#666'
-    }}>
+    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
       <h2 style={{
-        fontSize: '2rem',
-        marginBottom: '1rem',
-        color: '#333'
-      }}>{title}</h2>
-      <p style={{ fontSize: '1.2rem' }}>Coming soon...</p>
+        fontSize: '24px',
+        fontWeight: 600,
+        marginBottom: '1rem'
+      }}>
+        重复出现的话题 (Echoes)
+      </h2>
+
+      <p style={{
+        color: '#666',
+        marginBottom: '2rem',
+        lineHeight: 1.6
+      }}>
+        Identify recurring themes and topics across all your notes.
+      </p>
+
+      <button
+        onClick={handleAnalyze}
+        disabled={loading}
+        style={{
+          padding: '12px 24px',
+          background: loading ? '#ccc' : '#333',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          fontSize: '14px',
+          fontWeight: 600,
+          marginBottom: '2rem'
+        }}
+      >
+        {loading ? 'Analyzing...' : 'Analyze Echoes'}
+      </button>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          background: '#fee',
+          border: '1px solid #fcc',
+          borderRadius: '6px',
+          color: '#c33',
+          marginBottom: '2rem'
+        }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.5rem'
+      }}>
+        {echoes.map((echo, idx) => (
+          <div
+            key={idx}
+            style={{
+              background: '#fff',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              border: '1px solid #d0c4b0',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}
+          >
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              marginBottom: '0.75rem',
+              color: '#333'
+            }}>
+              {echo.title}
+            </h3>
+            <p style={{
+              color: '#666',
+              lineHeight: 1.6,
+              marginBottom: '1rem'
+            }}>
+              {echo.description}
+            </p>
+            <div style={{
+              borderTop: '1px solid #f0f0f0',
+              paddingTop: '1rem'
+            }}>
+              <div style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#999',
+                marginBottom: '0.5rem'
+              }}>
+                EXAMPLES:
+              </div>
+              {echo.examples?.map((ex: string, i: number) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '0.5rem',
+                    background: '#f8f0e6',
+                    borderLeft: '3px solid #d0c4b0',
+                    marginBottom: '0.5rem',
+                    fontSize: '13px',
+                    fontStyle: 'italic',
+                    color: '#666'
+                  }}
+                >
+                  "{ex}"
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-// Page 4: Chat-style Q&A interface
-function Page4ChatQA() {
-  const conversations = [
-    { type: 'user', text: '我最近写了什么？', name: '你' },
-    { type: 'ai', text: '你写了一段关于源代码贬值的想法。', name: 'AI' },
-    { type: 'user', text: '我为什么会失落？', name: '你' },
-    { type: 'ai', text: '你提到感觉自己不再被需要了，AI 可以做得更好。这种从"创造者"变成"搬运工"的落差，让你失落。', name: 'AI' },
-    { type: 'user', text: '被需要对我来说意味着什么？', name: '你' },
-    { type: 'ai', text: '从你的文字来看，被需要意味着你的思考和创造是有价值的，不只是机械地搬运代码。那种主动思考、创造的体验，对你很重要。', name: 'AI' }
-  ];
+// @@@ Traits Page - Personality characteristics
+function TraitsPage({ allNotes }: { allNotes: string }) {
+  const [traits, setTraits] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleAnalyze = async () => {
+    if (!allNotes.trim()) {
+      setError('No notes found. Save some entries first.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await analyzeTraits(allNotes);
+      setTraits(result);
+    } catch (e: any) {
+      setError(e.message || 'Analysis failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div style={{
-      maxWidth: 800,
-      margin: '0 auto',
-      padding: '2rem'
-    }}>
-      {conversations.map((conv, index) => (
-        <div key={index}>
-          <div style={{
-            display: 'flex',
-            gap: '1rem',
-            padding: '1.5rem 0',
-            alignItems: 'flex-start'
-          }}>
-            {/* Name on the left */}
-            <div style={{
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: '#666',
-              flexShrink: 0,
-              minWidth: 40
-            }}>
-              {conv.name}
-            </div>
+    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <h2 style={{
+        fontSize: '24px',
+        fontWeight: 600,
+        marginBottom: '1rem'
+      }}>
+        性格特征分析 (Traits)
+      </h2>
 
-            {/* Text content */}
+      <p style={{
+        color: '#666',
+        marginBottom: '2rem',
+        lineHeight: 1.6
+      }}>
+        Identify personality traits evident from your writing.
+      </p>
+
+      <button
+        onClick={handleAnalyze}
+        disabled={loading}
+        style={{
+          padding: '12px 24px',
+          background: loading ? '#ccc' : '#333',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          fontSize: '14px',
+          fontWeight: 600,
+          marginBottom: '2rem'
+        }}
+      >
+        {loading ? 'Analyzing...' : 'Analyze Traits'}
+      </button>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          background: '#fee',
+          border: '1px solid #fcc',
+          borderRadius: '6px',
+          color: '#c33',
+          marginBottom: '2rem'
+        }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+        gap: '1.5rem'
+      }}>
+        {traits.map((trait, idx) => (
+          <div
+            key={idx}
+            style={{
+              background: '#fff',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              border: '1px solid #d0c4b0',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}
+          >
             <div style={{
-              flex: 1,
-              fontSize: '1.1rem',
-              lineHeight: 1.8,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '0.75rem'
+            }}>
+              <h3 style={{
+                fontSize: '18px',
+                fontWeight: 600,
+                color: '#333'
+              }}>
+                {trait.trait}
+              </h3>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: 600,
+                color: '#666',
+                background: '#f0f0f0',
+                padding: '4px 8px',
+                borderRadius: '4px'
+              }}>
+                {trait.strength}/5
+              </div>
+            </div>
+            {/* Strength bar */}
+            <div style={{
+              height: '6px',
+              background: '#f0f0f0',
+              borderRadius: '3px',
+              marginBottom: '1rem',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%',
+                width: `${(trait.strength / 5) * 100}%`,
+                background: 'linear-gradient(90deg, #4CAF50, #8BC34A)',
+                borderRadius: '3px'
+              }} />
+            </div>
+            <p style={{
+              color: '#666',
+              lineHeight: 1.6,
+              fontSize: '13px'
+            }}>
+              {trait.evidence}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// @@@ Patterns Page - Behavioral patterns
+function PatternsPage({ allNotes }: { allNotes: string }) {
+  const [patterns, setPatterns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleAnalyze = async () => {
+    if (!allNotes.trim()) {
+      setError('No notes found. Save some entries first.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await analyzePatterns(allNotes);
+      setPatterns(result);
+    } catch (e: any) {
+      setError(e.message || 'Analysis failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <h2 style={{
+        fontSize: '24px',
+        fontWeight: 600,
+        marginBottom: '1rem'
+      }}>
+        行为模式分析 (Patterns)
+      </h2>
+
+      <p style={{
+        color: '#666',
+        marginBottom: '2rem',
+        lineHeight: 1.6
+      }}>
+        Identify behavioral patterns and habits from your notes.
+      </p>
+
+      <button
+        onClick={handleAnalyze}
+        disabled={loading}
+        style={{
+          padding: '12px 24px',
+          background: loading ? '#ccc' : '#333',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          fontSize: '14px',
+          fontWeight: 600,
+          marginBottom: '2rem'
+        }}
+      >
+        {loading ? 'Analyzing...' : 'Analyze Patterns'}
+      </button>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          background: '#fee',
+          border: '1px solid #fcc',
+          borderRadius: '6px',
+          color: '#c33',
+          marginBottom: '2rem'
+        }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.5rem'
+      }}>
+        {patterns.map((pattern, idx) => (
+          <div
+            key={idx}
+            style={{
+              background: '#fff',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              border: '1px solid #d0c4b0',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}
+          >
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              marginBottom: '0.75rem',
               color: '#333'
             }}>
-              {conv.text}
+              {pattern.pattern}
+            </h3>
+            <p style={{
+              color: '#666',
+              lineHeight: 1.6,
+              marginBottom: '1rem'
+            }}>
+              {pattern.description}
+            </p>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '13px',
+              color: '#999'
+            }}>
+              <span style={{ fontWeight: 600 }}>Frequency:</span>
+              <span>{pattern.frequency}</span>
             </div>
           </div>
-
-          {/* Subtle divider */}
-          {index < conversations.length - 1 && (
-            <div style={{
-              height: 1,
-              background: 'linear-gradient(to right, transparent, #d0c4b0 20%, #d0c4b0 80%, transparent)',
-              opacity: 0.3
-            }} />
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

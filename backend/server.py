@@ -6,6 +6,7 @@ from polycli.orchestration.session_registry import session_def, get_registry
 from polycli import PolyAgent
 from stateless_analyzer import analyze_stateless
 import config
+from proxy_config import get_image_api_proxies
 
 @session_def(
     name="Chat with Voice",
@@ -306,6 +307,164 @@ Return ONLY the JSON array, no other text."""
         return {"patterns": patterns}
     except:
         return {"patterns": []}
+
+@session_def(
+    name="Generate Daily Picture",
+    description="Generate an artistic image based on user's daily notes",
+    params={
+        "all_notes": {"type": "str"}
+    },
+    category="Creative"
+)
+def generate_daily_picture(all_notes: str):
+    """Generate an image based on the essence of user's daily notes.
+
+    Uses a two-step process:
+    1. LLM analyzes notes and creates artistic image description
+    2. Image generation model creates the image
+    """
+    print(f"\n{'='*60}")
+    print(f"🎨 generate_daily_picture() called")
+    print(f"   Notes length: {len(all_notes)} chars")
+    print(f"{'='*60}\n")
+
+    import requests
+    import base64
+
+    API_KEY = "sk-yz0JLc7sGbCHnwam70Bc9e29Dc684bAe904102C95dF32fB1"
+    ENDPOINT = "https://api.dou.chat/v1"
+
+    # @@@ Step 1: Convert notes to artistic image description using Claude Haiku
+    import requests as req
+
+    CLAUDE_API_KEY = "sk-yz0JLc7sGbCHnwam70Bc9e29Dc684bAe904102C95dF32fB1"
+    CLAUDE_ENDPOINT = "https://api.dou.chat/v1"
+    CLAUDE_MODEL = "anthropic/claude-haiku-4.5"
+
+    description_prompt = f"""Read these personal notes and create a vivid, artistic image description that captures the essence, mood, and themes.
+
+Notes:
+---
+{all_notes}
+---
+
+Create a detailed image description (2-3 sentences) that:
+- Captures the emotional tone and atmosphere
+- Uses visual metaphors for abstract concepts
+- Specifies artistic style (e.g., watercolor, impressionist, minimalist)
+- Describes colors, lighting, composition
+
+Be creative and interpretive. Focus on mood and feeling, not literal representation.
+
+Return ONLY the image description, no other text."""
+
+    print("🧠 Creating image description from notes with Claude Haiku...")
+
+    # @@@ Use proxy for GFW bypass (if configured)
+    proxies = get_image_api_proxies()
+
+    claude_response = req.post(
+        f"{CLAUDE_ENDPOINT}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {CLAUDE_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": CLAUDE_MODEL,
+            "messages": [{"role": "user", "content": description_prompt}],
+            "max_tokens": 500
+        },
+        proxies=proxies,
+        timeout=30
+    )
+
+    if claude_response.status_code != 200:
+        return {"image_base64": None, "error": "Failed to create image description"}
+
+    claude_data = claude_response.json()
+    image_description = claude_data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+
+    if not image_description:
+        return {"image_base64": None, "error": "Failed to create image description"}
+
+    print(f"📝 Image description: {image_description}")
+
+    # @@@ Step 2: Generate image from description with retry logic
+    MODEL = "google/gemini-2.5-flash-image-preview"
+
+    url = f"{ENDPOINT}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "model": MODEL,
+        "messages": [
+            {
+                "role": "user",
+                "content": image_description
+            }
+        ],
+        "max_tokens": 1000
+    }
+
+    # @@@ Retry logic: 3 attempts with increasing timeouts
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            timeout_seconds = 60 + (attempt - 1) * 30  # 60s, 90s, 120s
+            print(f"🎨 Generating image (attempt {attempt}/{max_attempts}, timeout={timeout_seconds}s)...")
+            response = requests.post(url, headers=headers, json=payload, proxies=proxies, timeout=timeout_seconds)
+
+            if response.status_code != 200:
+                print(f"❌ Error: {response.status_code}")
+                if attempt < max_attempts:
+                    print(f"⏳ Retrying in 2 seconds...")
+                    import time
+                    time.sleep(2)
+                    continue
+                return {"image_base64": None, "error": "Image generation failed"}
+
+            data = response.json()
+
+            # Extract image from response
+            if 'choices' in data and len(data['choices']) > 0:
+                message = data['choices'][0].get('message', {})
+                images = message.get('images', [])
+
+                if images:
+                    image_data = images[0].get('image_url', {}).get('url', '')
+
+                    if image_data.startswith('data:image/png;base64,'):
+                        # Extract base64 data (without the data URI prefix)
+                        base64_data = image_data.split(',', 1)[1]
+
+                        print(f"✅ Image generated successfully")
+                        print(f"   Size: {len(base64_data)} chars")
+
+                        return {
+                            "image_base64": base64_data,
+                            "prompt": image_description  # Return the creative description
+                        }
+
+            if attempt < max_attempts:
+                print(f"⚠️ No image in response, retrying...")
+                import time
+                time.sleep(2)
+                continue
+            return {"image_base64": None, "error": "No image in response"}
+
+        except Exception as e:
+            print(f"❌ Exception on attempt {attempt}: {e}")
+            if attempt < max_attempts:
+                print(f"⏳ Retrying in 2 seconds...")
+                import time
+                time.sleep(2)
+                continue
+            return {"image_base64": None, "error": str(e)}
+
+    return {"image_base64": None, "error": "All retry attempts failed"}
 
 if __name__ == "__main__":
     # Get the global registry

@@ -166,7 +166,16 @@ export class EditorEngine {
     this.checkAnalysisTrigger(combinedText, energy);
 
     // Check if we can apply commentors
-    this.checkCommentorApplication(combinedText, energy);
+    const result = this.checkCommentorApplication(combinedText, energy);
+
+    // @@@ If comments were skipped, invalidate cache to allow fresh request
+    if (result.skippedAny && !result.appliedAny) {
+      console.log(`🔄 Comments were skipped, invalidating cache to allow fresh request`);
+      const completedSentences = getCompletedSentences(combinedText);
+      if (completedSentences) {
+        this.sentCache.delete(completedSentences);
+      }
+    }
 
     this.notifyChange();
   }
@@ -212,8 +221,9 @@ export class EditorEngine {
   }
 
   // @@@ Check if we can apply commentors from waitlist
-  private checkCommentorApplication(text: string, currentEnergy: number): boolean {
+  private checkCommentorApplication(text: string, currentEnergy: number): { appliedAny: boolean; skippedAny: boolean } {
     let appliedAny = false;
+    let skippedAny = false;
 
     // Apply ONE commentor at a time when we have enough energy
     while (this.commentorWaitlist.length > 0) {
@@ -229,6 +239,7 @@ export class EditorEngine {
       // Check if text still matches (current text starts with snapshot)
       if (!text.startsWith(commentor.textSnapshot)) {
         console.log(`⏭️ Skipped outdated commentor: ${commentor.voice}`);
+        skippedAny = true;
         continue;
       }
 
@@ -236,6 +247,7 @@ export class EditorEngine {
       const phraseIndex = text.toLowerCase().indexOf(commentor.phrase.toLowerCase());
       if (phraseIndex === -1) {
         console.log(`⏭️ Skipped commentor (phrase not found): ${commentor.voice}`);
+        skippedAny = true;
         continue;
       }
 
@@ -260,6 +272,7 @@ export class EditorEngine {
       }
 
       if (hasOverlap) {
+        skippedAny = true;
         continue;
       }
 
@@ -276,7 +289,7 @@ export class EditorEngine {
       this.notifyChange();
     }
 
-    return appliedAny;
+    return { appliedAny, skippedAny };
   }
 
   // @@@ Request analysis from backend
@@ -376,10 +389,22 @@ export class EditorEngine {
     const currentEnergy = lastEntry?.energy || 0;
 
     // Try to apply comments from waitlist
-    const appliedAny = this.checkCommentorApplication(text, currentEnergy);
+    const result = this.checkCommentorApplication(text, currentEnergy);
 
+    // @@@ If comments were skipped but not applied, invalidate cache
+    if (result.skippedAny && !result.appliedAny) {
+      console.log(`🔄 All pending comments were skipped, invalidating cache`);
+      const completedSentences = getCompletedSentences(text);
+      if (completedSentences) {
+        this.sentCache.delete(completedSentences);
+        // Trigger a fresh request immediately
+        setTimeout(() => {
+          this.checkAnalysisTrigger(text, currentEnergy);
+        }, 50);
+      }
+    }
     // If we applied comments, hash changed, so check if we need another request
-    if (appliedAny) {
+    else if (result.appliedAny) {
       // Give a small delay to let the UI update
       setTimeout(() => {
         this.checkAnalysisTrigger(text, currentEnergy);

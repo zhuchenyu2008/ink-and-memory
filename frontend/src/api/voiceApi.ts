@@ -36,6 +36,8 @@ interface StatusResponse {
     echoes?: any[];  // For echoes analysis
     traits?: any[];  // For traits analysis
     patterns?: any[];  // For patterns analysis
+    image_base64?: string;  // For image generation
+    prompt?: string;  // Image generation prompt
   };
   error?: string;
 }
@@ -70,8 +72,8 @@ export async function triggerAnalysis(text: string, sessionId: string, voices?: 
  * Get analysis result (polls until completed)
  */
 export async function getAnalysisResult(exec_id: string): Promise<StatusResponse['result']> {
-  // Poll every 500ms, max 30 seconds
-  const maxAttempts = 60;
+  // Poll every 500ms, max 2 minutes (enough for image generation)
+  const maxAttempts = 240;
   let attempts = 0;
 
   console.log('🔄 Starting to poll for exec_id:', exec_id);
@@ -228,4 +230,36 @@ export async function analyzePatterns(allNotes: string): Promise<any[]> {
 
   const result = await getAnalysisResult(data.exec_id);
   return result?.patterns || [];
+}
+
+/**
+ * Generate a daily picture based on user's notes
+ */
+export async function generateDailyPicture(allNotes: string): Promise<{ image_base64: string; prompt: string }> {
+  console.log('🎨 Sending image generation request...');
+
+  const response = await fetch(`${API_BASE}/api/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: 'generate_daily_picture',
+      params: { all_notes: allNotes }
+    })
+  });
+
+  const data: TriggerResponse = await response.json();
+  if (!data.success) {
+    throw new Error('Failed to trigger image generation');
+  }
+
+  const result = await getAnalysisResult(data.exec_id);
+
+  if (result?.image_base64) {
+    return {
+      image_base64: result.image_base64,
+      prompt: result.prompt || 'Generated from your notes'
+    };
+  }
+
+  throw new Error('Image generation failed');
 }

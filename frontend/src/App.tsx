@@ -252,7 +252,7 @@ const colorMap: Record<string, { gradient: string; text: string; glow: string }>
 // @@@ Main App Component
 export default function App() {
   const isMobile = useMobile();
-  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'collections' | 'analysis' | 'about'>('writing');
+  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'about'>('writing');
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
   const [defaultVoiceConfigs, setDefaultVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
@@ -298,10 +298,12 @@ export default function App() {
   const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
   const [commentChatProcessing, setCommentChatProcessing] = useState<Set<string>>(new Set());
 
-  // @@@ Reset refs ready flag when returning to writing view
+  // @@@ Trigger re-render when returning to writing view to recalculate comment positions
   useEffect(() => {
     if (currentView === 'writing') {
-      refsReadyTriggered.current = false;
+      // Force re-render to recalculate comment positions
+      // Don't reset refsReadyTriggered - it should remain true after initial mount
+      setRefsReady(prev => prev + 1);
     }
   }, [currentView]);
 
@@ -1468,7 +1470,7 @@ export default function App() {
           />
         </div>
       )}
-      {currentView === 'collections' && (
+      {currentView === 'timeline' && (
         <div style={{
           position: 'fixed',
           top: 48,

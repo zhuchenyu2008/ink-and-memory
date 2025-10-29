@@ -1,6 +1,6 @@
 interface Props {
-  currentView: 'writing' | 'settings' | 'collections' | 'analysis' | 'about';
-  onViewChange: (view: 'writing' | 'settings' | 'collections' | 'analysis' | 'about') => void;
+  currentView: 'writing' | 'settings' | 'timeline' | 'analysis' | 'about';
+  onViewChange: (view: 'writing' | 'settings' | 'timeline' | 'analysis' | 'about') => void;
 }
 
 export default function LeftSidebar({ currentView, onViewChange }: Props) {
@@ -93,27 +93,27 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
         </button>
 
         <button
-          onClick={() => onViewChange('collections')}
-          style={buttonStyle(currentView === 'collections')}
-          title="Collections"
+          onClick={() => onViewChange('timeline')}
+          style={buttonStyle(currentView === 'timeline')}
+          title="Timeline"
           onMouseEnter={e => {
-            if (currentView !== 'collections') {
+            if (currentView !== 'timeline') {
               e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
             }
           }}
           onMouseLeave={e => {
-            if (currentView !== 'collections') {
+            if (currentView !== 'timeline') {
               e.currentTarget.style.background = 'transparent';
             }
           }}
         >
-          Collections
+          Timeline
         </button>
 
         <button
           onClick={() => onViewChange('analysis')}
           style={buttonStyle(currentView === 'analysis')}
-          title="Analysis"
+          title="Reflections"
           onMouseEnter={e => {
             if (currentView !== 'analysis') {
               e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
@@ -125,7 +125,7 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
             }
           }}
         >
-          Analysis
+          Reflections
         </button>
 
         <button

@@ -8,6 +8,20 @@ MAX_VOICES = 5
 MIN_TEXT_LENGTH = 20
 SINGLE_COMMENT_MODE = True  # If True, only add 1 comment per request (gradual accumulation)
 
+# @@@ Image generation configuration
+IMAGE_API_KEY = "sk-yz0JLc7sGbCHnwam70Bc9e29Dc684bAe904102C95dF32fB1"
+IMAGE_API_ENDPOINT = "https://api.dou.chat/v1"
+IMAGE_DESCRIPTION_MODEL = "anthropic/claude-haiku-4.5"
+IMAGE_GENERATION_MODEL = "google/gemini-2.5-flash-image-preview"
+
+# Retry configuration for image generation
+IMAGE_RETRY_MAX_ATTEMPTS = 3
+IMAGE_RETRY_BASE_TIMEOUT = 60  # First attempt: 60s, then +30s per retry
+IMAGE_RETRY_TIMEOUT_INCREMENT = 30
+IMAGE_MAX_TOKENS = 1000
+IMAGE_DESCRIPTION_MAX_TOKENS = 500
+IMAGE_DESCRIPTION_TIMEOUT = 30
+
 # Voice archetypes (Disco Elysium skills adapted for general writing)
 VOICE_ARCHETYPES = {
     "Logic": {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Commentor } from '../engine/EditorEngine';
+import { findNormalizedPhrase } from '../utils/textNormalize';
 
 // @@@ TypeScript interfaces
 interface TimelineDay {
@@ -23,6 +24,39 @@ export default function CollectionsView() {
       <TimelinePage />
     </div>
   );
+}
+
+// @@@ Extract complete sentence containing a phrase
+function extractCompleteSentence(text: string, phrase: string): string {
+  // Find phrase position (with normalization)
+  const phraseIndex = findNormalizedPhrase(text, phrase);
+  if (phraseIndex === -1) {
+    return phrase; // Fallback if phrase not found
+  }
+
+  // Sentence ending markers
+  const sentenceEndings = '.!?。！？\n';
+
+  // Find sentence start - go backwards to find previous sentence ending or start of text
+  let sentenceStart = 0;
+  for (let i = phraseIndex - 1; i >= 0; i--) {
+    if (sentenceEndings.includes(text[i])) {
+      sentenceStart = i + 1;
+      break;
+    }
+  }
+
+  // Find sentence end - go forwards to find next sentence ending
+  let sentenceEnd = text.length;
+  for (let i = phraseIndex + phrase.length; i < text.length; i++) {
+    if (sentenceEndings.includes(text[i])) {
+      sentenceEnd = i + 1;
+      break;
+    }
+  }
+
+  // Extract sentence and trim whitespace
+  return text.slice(sentenceStart, sentenceEnd).trim();
 }
 
 // @@@ Helper to get icon emoji
@@ -686,7 +720,7 @@ function TimelinePage() {
                               overflowWrap: 'anywhere',
                               minWidth: 0
                             }}>
-                              "{comment.phrase}"
+                              "{extractCompleteSentence(comment.textSnapshot || '', comment.phrase)}"
                             </div>
                             <div style={{
                               fontSize: '13px',

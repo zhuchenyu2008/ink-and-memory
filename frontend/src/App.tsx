@@ -25,6 +25,7 @@ import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
 import { getDefaultVoices, chatWithVoice } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
 import { CommentGroupCard } from './components/CommentCard';
+import { findNormalizedPhrase } from './utils/textNormalize';
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
 function LeftToolbar({
@@ -461,7 +462,7 @@ export default function App() {
       state.commentors
         .filter(c => c.appliedAt)
         .forEach(commentor => {
-          const index = text.toLowerCase().indexOf(commentor.phrase.toLowerCase());
+          const index = findNormalizedPhrase(text, commentor.phrase);
           if (index === -1) return;
 
           const visualLineNumber = charToVisualLine[index] || 0;
@@ -578,7 +579,7 @@ export default function App() {
     // Find comment at cursor position within this cell's text
     let foundComment: Commentor | null = null;
     for (const comment of appliedComments) {
-      const index = cellText.toLowerCase().indexOf(comment.phrase.toLowerCase());
+      const index = findNormalizedPhrase(cellText, comment.phrase);
       if (index !== -1) {
         const start = index;
         const end = index + comment.phrase.length;
@@ -674,8 +675,11 @@ export default function App() {
   }, []);
 
   const handlePaste = useCallback((cellId: string, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // @@@ Store element reference (not value!) - browser inserts paste AFTER this handler
+    const textarea = e.currentTarget;
     setTimeout(() => {
-      const newText = e.currentTarget.value;
+      // @@@ Now read value - paste has been inserted by browser
+      const newText = textarea.value;
       setLocalTexts(prev => {
         const next = new Map(prev);
         next.set(cellId, newText);
@@ -1009,7 +1013,7 @@ export default function App() {
     // Find highlights in this specific text
     const highlights: Array<{ start: number; end: number; comment: Commentor }> = [];
     appliedComments.forEach(comment => {
-      const index = text.toLowerCase().indexOf(comment.phrase.toLowerCase());
+      const index = findNormalizedPhrase(text, comment.phrase);
       if (index !== -1) {
         highlights.push({
           start: index,
@@ -1069,7 +1073,7 @@ export default function App() {
 
   const lastEntry = state.weightPath[state.weightPath.length - 1];
   const currentEnergy = lastEntry?.energy || 0;
-  const usedEnergy = state.commentors.filter(c => c.appliedAt).length * 40;
+  const usedEnergy = state.commentors.filter(c => c.appliedAt).length * 50;
   const unusedEnergy = currentEnergy - usedEnergy;
   const appliedComments = state.commentors.filter(c => c.appliedAt);
 

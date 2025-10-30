@@ -2,6 +2,9 @@
  * Clean editor engine based on trace-based energy model
  */
 
+import { findNormalizedPhrase } from '../utils/textNormalize';
+import { debugLogger } from '../utils/debugLogger';
+
 // @@@ Core data model - cells + commentors + tasks + WeightPath
 export interface EditorState {
   cells: Cell[];
@@ -110,7 +113,7 @@ export function getCompletedSentences(text: string): string {
 export class EditorEngine {
   private state: EditorState;
   private usedEnergy: number = 0;
-  private threshold: number = 40;
+  private threshold: number = 50;
   private commentorWaitlist: Commentor[] = [];
   private sentCache: Map<string, string> = new Map(); // Track sent sentences -> commentor hash
   private onStateChange?: (state: EditorState) => void;
@@ -170,7 +173,9 @@ export class EditorEngine {
 
     // @@@ If comments were skipped, invalidate cache to allow fresh request
     if (result.skippedAny && !result.appliedAny) {
-      console.log(`🔄 Comments were skipped, invalidating cache to allow fresh request`);
+      debugLogger.log('skip', 'Comments were skipped, invalidating cache to allow fresh request', {
+        waitlistLength: this.commentorWaitlist.length
+      });
       const completedSentences = getCompletedSentences(combinedText);
       if (completedSentences) {
         this.sentCache.delete(completedSentences);
@@ -238,15 +243,32 @@ export class EditorEngine {
 
       // Check if text still matches (current text starts with snapshot)
       if (!text.startsWith(commentor.textSnapshot)) {
-        console.log(`⏭️ Skipped outdated commentor: ${commentor.voice}`);
+        debugLogger.log('skip', `Skipped outdated commentor: ${commentor.voice}`, {
+          voice: commentor.voice,
+          phrase: commentor.phrase,
+          reason: 'text snapshot mismatch'
+        });
         skippedAny = true;
         continue;
       }
 
-      // @@@ Check for overlap with existing highlights
-      const phraseIndex = text.toLowerCase().indexOf(commentor.phrase.toLowerCase());
+      // @@@ Check for overlap with existing highlights (with normalized matching)
+      const phraseIndex = findNormalizedPhrase(text, commentor.phrase);
       if (phraseIndex === -1) {
-        console.log(`⏭️ Skipped commentor (phrase not found): ${commentor.voice}`);
+        // @@@ Deep debugging - show character codes
+        const phraseChars = Array.from(commentor.phrase.slice(0, 30)).map(c => `${c}(${c.charCodeAt(0)})`).join(' ');
+        const textSnippet = text.includes('transcend') ? text.substring(text.indexOf('transcend'), text.indexOf('transcend') + 50) : '';
+        const textChars = textSnippet ? Array.from(textSnippet.slice(0, 30)).map(c => `${c}(${c.charCodeAt(0)})`).join(' ') : '';
+
+        debugLogger.log('phrase_not_found', `Skipped commentor (phrase not found): ${commentor.voice}`, {
+          voice: commentor.voice,
+          phrase: commentor.phrase,
+          phraseCharCodes: phraseChars,
+          textLength: text.length,
+          fullText: text,
+          textSnippet: textSnippet,
+          textCharCodes: textChars
+        });
         skippedAny = true;
         continue;
       }
@@ -257,7 +279,7 @@ export class EditorEngine {
       // Check overlap with all applied commentors
       let hasOverlap = false;
       for (const applied of this.state.commentors.filter(c => c.appliedAt)) {
-        const appliedIndex = text.toLowerCase().indexOf(applied.phrase.toLowerCase());
+        const appliedIndex = findNormalizedPhrase(text, applied.phrase);
         if (appliedIndex === -1) continue;
 
         const appliedStart = appliedIndex;
@@ -266,7 +288,14 @@ export class EditorEngine {
         // Check if ranges overlap: [phraseStart, phraseEnd) overlaps with [appliedStart, appliedEnd)
         if (phraseStart < appliedEnd && phraseEnd > appliedStart) {
           hasOverlap = true;
-          console.log(`⚠️ Skipped overlapping commentor: "${commentor.phrase}" overlaps with "${applied.phrase}"`);
+          debugLogger.log('overlap', `Skipped overlapping commentor: "${commentor.phrase}" overlaps with "${applied.phrase}"`, {
+            newVoice: commentor.voice,
+            newPhrase: commentor.phrase,
+            newRange: [phraseStart, phraseEnd],
+            existingVoice: applied.voice,
+            existingPhrase: applied.phrase,
+            existingRange: [appliedStart, appliedEnd]
+          });
           break;
         }
       }
@@ -281,8 +310,15 @@ export class EditorEngine {
       this.state.commentors.push(commentor);
       this.usedEnergy += this.threshold;
       appliedAny = true;
-      console.log(`✅ Applied commentor: ${commentor.voice} on "${commentor.phrase}"`);
-      console.log(`   Energy: used ${this.usedEnergy}/${currentEnergy} (${currentEnergy - this.usedEnergy} remaining)`);
+      debugLogger.log('apply', `Applied commentor: ${commentor.voice} on "${commentor.phrase}"`, {
+        voice: commentor.voice,
+        phrase: commentor.phrase,
+        comment: commentor.comment,
+        usedEnergy: this.usedEnergy,
+        totalEnergy: currentEnergy,
+        remainingEnergy: currentEnergy - this.usedEnergy,
+        waitlistRemaining: this.commentorWaitlist.length
+      });
     }
 
     if (appliedAny) {
@@ -356,11 +392,19 @@ export class EditorEngine {
           textSnapshot: text
         };
         this.commentorWaitlist.push(commentor);
-        console.log(`📥 Added 1 commentor to waitlist: ${commentor.voice}`);
+        debugLogger.log('waitlist', `Added 1 commentor to waitlist: ${commentor.voice}`, {
+          voice: commentor.voice,
+          phrase: commentor.phrase,
+          comment: commentor.comment,
+          waitlistLength: this.commentorWaitlist.length
+        });
       } else {
-        console.log(`📭 No new commentor from backend`);
+        debugLogger.log('request', 'No new commentor from backend', {
+          appliedCount: this.state.commentors.filter(c => c.appliedAt).length
+        });
       }
     } catch (error) {
+      debugLogger.log('request', 'Analysis failed', { error: String(error) });
       console.error('Analysis failed:', error);
     } finally {
       this.isRequesting = false;
@@ -393,7 +437,10 @@ export class EditorEngine {
 
     // @@@ If comments were skipped but not applied, invalidate cache
     if (result.skippedAny && !result.appliedAny) {
-      console.log(`🔄 All pending comments were skipped, invalidating cache`);
+      debugLogger.log('skip', 'All pending comments were skipped, invalidating cache', {
+        waitlistLength: this.commentorWaitlist.length,
+        willRetry: true
+      });
       const completedSentences = getCompletedSentences(text);
       if (completedSentences) {
         this.sentCache.delete(completedSentences);

@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { findNormalizedPhrase } from '../utils/textNormalize';
 
 export interface VoiceTrigger {
   phrase: string;
@@ -98,10 +99,10 @@ export const VoiceHighlight = Extension.create<VoiceHighlightOptions>({
 
 function findHighlights(doc: any, triggers: VoiceTrigger[]): DecorationSet {
   const decorations: Decoration[] = [];
-  const text = doc.textContent.toLowerCase();
+  const text = doc.textContent;
 
   triggers.forEach(({ phrase, color }) => {
-    const pos = text.indexOf(phrase.toLowerCase());
+    const pos = findNormalizedPhrase(text, phrase);
 
     if (pos !== -1) {
       // Convert text position to document position

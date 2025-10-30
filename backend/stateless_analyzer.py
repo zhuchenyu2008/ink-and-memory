@@ -7,7 +7,7 @@ from polycli import PolyAgent
 import config
 
 class VoiceTrigger(BaseModel):
-    phrase: str = Field(description="Exact trigger phrase from text (verbatim, 2-6 words)")
+    phrase: str = Field(description="Exact trigger phrase from text (verbatim, 2-4 words, avoid punctuation)")
     voice: str = Field(description="Voice archetype name from the available list")
     comment: str = Field(description="What this voice is saying (as if speaking)")
     icon: str = Field(description="Icon identifier")
@@ -69,19 +69,24 @@ Available voice personas (ONLY use these):
 {existing_summary}
 
 Find ONE NEW voice to comment:
-1. Extract a SHORT phrase (2-6 words) that triggered it - MUST be EXACT text from above
+1. Extract a SHORT phrase (2-4 words) that triggered it - MUST be EXACT text from above
 2. Choose a voice persona from the available list
 3. Write what this voice is saying (1-2 sentences)
 
-RULES:
+CRITICAL RULES:
 - Return ONLY ONE comment
 - DO NOT repeat any applied comments
 - DO NOT choose phrases that overlap or intersect with already highlighted phrases
 - Your chosen phrase must be completely separate from existing highlights
 - DO NOT CREATE NEW VOICE NAMES - Only use from the available list
 - Return null if nothing is worth commenting on
-- Phrase MUST be EXACT substring from text
+- Phrase MUST be EXACT substring from text - verify by checking character-by-character
+- IGNORE text inside quotation marks ("..." or '...') - only highlight the author's own words
+- DO NOT extract phrases from quoted responses, references, or examples
+- Only comment on what the AUTHOR wrote, not what they are quoting or citing
 - Only comment on complete sentences (ending with .!?。！？)
+- Prefer SHORT highlights without punctuation (e.g., "feel anxious" not "I feel anxious.")
+- Keep highlights tight and focused - avoid including sentence endings
 - Write in the SAME LANGUAGE as the text"""
 
     # @@@ Add meta prompt if available

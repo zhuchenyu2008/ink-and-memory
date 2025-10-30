@@ -82,15 +82,11 @@ export default function VoiceSettings({ defaultVoices, onSave }: Props) {
   };
 
   const handleDefault = () => {
-    console.log('🔄 Use Default clicked');
-    console.log('Current voices:', voices);
-    console.log('Default voices:', defaultVoices);
     clearVoices();
     localStorage.removeItem('meta-prompt');
     localStorage.removeItem('state-config');
     // Deep copy to force React to re-render
     const freshDefaults = JSON.parse(JSON.stringify(defaultVoices));
-    console.log('Fresh defaults:', freshDefaults);
     setVoices(freshDefaults);
     setMetaPrompt(getMetaPrompt());
     setStateConfig(getStateConfig());

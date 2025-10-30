@@ -125,7 +125,7 @@ User's current state:
     },
     category="Analysis"
 )
-def analyze_text(text: str, session_id: str, voices: dict = None, applied_comments: list = None, meta_prompt: str = "", state_prompt: str = ""):
+def analyze_text(text: str, session_id: str, voices: dict = None, applied_comments: list = None, meta_prompt: str = "", state_prompt: str = "", overlapped_phrases: list = None):
     """
     Stateless analysis - returns ONE new comment based on text and applied comments.
 
@@ -136,6 +136,7 @@ def analyze_text(text: str, session_id: str, voices: dict = None, applied_commen
         applied_comments: List of already applied comments (to avoid duplicates)
         meta_prompt: Additional instructions that apply to all voices
         state_prompt: User's current emotional state prompt
+        overlapped_phrases: Phrases that were rejected due to overlap (feedback loop)
 
     Returns:
         Dictionary with single new voice (or empty list)
@@ -144,6 +145,7 @@ def analyze_text(text: str, session_id: str, voices: dict = None, applied_commen
     print(f"🎯 Stateless analyze_text() called")
     print(f"   Text: {text[:100]}...")
     print(f"   Applied comments: {len(applied_comments or [])}")
+    print(f"   Overlapped phrases: {len(overlapped_phrases or [])}")
     print(f"   Meta prompt: {repr(meta_prompt)[:100]}")
     print(f"   State prompt: {repr(state_prompt)[:100]}")
     print(f"{'='*60}\n")
@@ -151,7 +153,7 @@ def analyze_text(text: str, session_id: str, voices: dict = None, applied_commen
     agent = PolyAgent(id="voice-analyzer")
 
     # Get voices from stateless analyzer
-    result = analyze_stateless(agent, text, applied_comments or [], voices, meta_prompt, state_prompt)
+    result = analyze_stateless(agent, text, applied_comments or [], voices, meta_prompt, state_prompt, overlapped_phrases or [])
 
     print(f"✅ Returning {result['new_voices_added']} new voice(s)")
 

@@ -16,7 +16,7 @@ class VoiceTrigger(BaseModel):
 class SingleVoiceAnalysis(BaseModel):
     voice: Optional[VoiceTrigger] = Field(description="Single voice trigger, or None if nothing to comment")
 
-def analyze_stateless(agent: PolyAgent, text: str, applied_comments: List[dict], voices: dict = None, meta_prompt: str = "", state_prompt: str = "") -> dict:
+def analyze_stateless(agent: PolyAgent, text: str, applied_comments: List[dict], voices: dict = None, meta_prompt: str = "", state_prompt: str = "", overlapped_phrases: List[str] = None) -> dict:
     """
     Stateless analysis - receives applied comments, returns ONE new comment.
 
@@ -27,10 +27,12 @@ def analyze_stateless(agent: PolyAgent, text: str, applied_comments: List[dict],
         voices: Voice configuration
         meta_prompt: Additional instructions that apply to all voices
         state_prompt: User's current emotional state prompt
+        overlapped_phrases: Phrases that were rejected due to overlap (feedback loop)
 
     Returns:
         Dict with single new voice (or empty list if none)
     """
+    overlapped_phrases = overlapped_phrases or []
     print(f"\n{'='*60}")
     print(f"📊 Stateless Analysis")
     print(f"   Text: {text[:100]}...")
@@ -57,6 +59,14 @@ def analyze_stateless(agent: PolyAgent, text: str, applied_comments: List[dict],
             existing_summary += f"- {c.get('voice', 'Unknown')} on \"{phrase}\": {c.get('comment', '')}\n"
         existing_summary += f"\n👉 These phrases are already highlighted: {highlighted_phrases}\n"
         existing_summary += "👉 Choose a DIFFERENT phrase that does NOT overlap with any of these!\n"
+
+    # @@@ Add overlapped phrases feedback (phrases that were rejected due to overlap)
+    if overlapped_phrases:
+        existing_summary += f"\n\nREJECTED PHRASES (these overlapped with existing highlights):\n"
+        for phrase in overlapped_phrases:
+            existing_summary += f"- \"{phrase}\" (REJECTED - do NOT suggest this again)\n"
+        existing_summary += f"\n⚠️ AVOID these phrases: {overlapped_phrases}\n"
+        existing_summary += "⚠️ The system already tried these and rejected them - choose something completely different!\n"
 
     prompt = f"""You are analyzing internal dialogue as distinct inner voice personas.
 

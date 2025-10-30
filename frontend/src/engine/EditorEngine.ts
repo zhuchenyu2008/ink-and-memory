@@ -11,6 +11,7 @@ export interface EditorState {
   commentors: Commentor[];
   tasks: Task[];
   weightPath: WeightEntry[];
+  overlappedPhrases: string[];  // @@@ Phrases rejected due to overlap (feedback to backend)
   sessionId: string;
   currentEntryId?: string;  // Track which calendar entry is being edited (for overwrite on save)
 }
@@ -126,6 +127,7 @@ export class EditorEngine {
       commentors: [],
       tasks: [],
       weightPath: [],
+      overlappedPhrases: [],
       sessionId
     };
   }
@@ -301,6 +303,10 @@ export class EditorEngine {
       }
 
       if (hasOverlap) {
+        // @@@ Track overlapped phrase for backend feedback
+        if (!this.state.overlappedPhrases.includes(commentor.phrase)) {
+          this.state.overlappedPhrases.push(commentor.phrase);
+        }
         skippedAny = true;
         continue;
       }
@@ -376,7 +382,7 @@ export class EditorEngine {
         ? stateConfig.states[selectedState].prompt
         : '';
 
-      const result = await analyzeText(text, this.state.sessionId, backendVoices, appliedCommentors, metaPrompt, statePrompt);
+      const result = await analyzeText(text, this.state.sessionId, backendVoices, appliedCommentors, metaPrompt, statePrompt, this.state.overlappedPhrases);
 
       // Backend returns at most ONE voice
       if (result.voices.length > 0) {
@@ -656,6 +662,10 @@ export class EditorEngine {
   // @@@ Load state from storage
   loadState(state: EditorState) {
     this.state = state;
+    // @@@ Ensure overlappedPhrases field exists (migration for old state)
+    if (!this.state.overlappedPhrases) {
+      this.state.overlappedPhrases = [];
+    }
     // Recompute used energy from applied commentors
     this.usedEnergy = this.state.commentors.filter(c => c.appliedAt).length * this.threshold;
     this.notifyChange();

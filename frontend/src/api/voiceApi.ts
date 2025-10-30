@@ -45,14 +45,14 @@ interface StatusResponse {
 /**
  * Trigger voice analysis session
  */
-export async function triggerAnalysis(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string): Promise<string> {
+export async function triggerAnalysis(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]): Promise<string> {
   console.log('📤 Sending trigger request...');
   const response = await fetch(`${API_BASE}/api/trigger`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       session_id: 'analyze_text',
-      params: { text, session_id: sessionId, voices, applied_comments: appliedComments || [], meta_prompt: metaPrompt || '', state_prompt: statePrompt || '' }
+      params: { text, session_id: sessionId, voices, applied_comments: appliedComments || [], meta_prompt: metaPrompt || '', state_prompt: statePrompt || '', overlapped_phrases: overlappedPhrases || [] }
     })
   });
 
@@ -104,8 +104,8 @@ export async function getAnalysisResult(exec_id: string): Promise<StatusResponse
 /**
  * Analyze text and return voices with metadata (all-in-one)
  */
-export async function analyzeText(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string) {
-  const exec_id = await triggerAnalysis(text, sessionId, voices, appliedComments, metaPrompt, statePrompt);
+export async function analyzeText(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]) {
+  const exec_id = await triggerAnalysis(text, sessionId, voices, appliedComments, metaPrompt, statePrompt, overlappedPhrases);
   const result = await getAnalysisResult(exec_id);
   // @@@ Return both voices and new_voices_added for energy refund mechanism
   return {

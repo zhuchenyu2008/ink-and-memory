@@ -57,8 +57,6 @@ interface SyncResponse {
  * Analyze text and return voices with metadata (sync API - no polling!)
  */
 export async function analyzeText(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]) {
-  console.log('📤 Sending analyze request (sync API)...');
-
   const response = await fetch(`${API_BASE}/api/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -74,7 +72,6 @@ export async function analyzeText(text: string, sessionId: string, voices?: any,
   });
 
   const data: SyncResponse = await response.json();
-  console.log('✅ Got sync response:', data);
 
   if (!data.success) {
     throw new Error(data.error || 'Analysis failed');
@@ -99,8 +96,6 @@ export async function chatWithVoice(
   metaPrompt?: string,
   statePrompt?: string
 ): Promise<string> {
-  console.log('💬 Sending chat request (sync API)...');
-
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -116,7 +111,6 @@ export async function chatWithVoice(
   });
 
   const data: SyncResponse = await response.json();
-  console.log('✅ Got chat response:', data);
 
   if (!data.success) {
     throw new Error(data.error || 'Chat failed');
@@ -129,8 +123,6 @@ export async function chatWithVoice(
  * Analyze echoes (recurring themes) from all notes (sync API - no polling!)
  */
 export async function analyzeEchoes(allNotes: string): Promise<any[]> {
-  console.log('🔄 Sending echoes analysis request (sync API)...');
-
   const response = await fetch(`${API_BASE}/api/analyze-echoes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -138,7 +130,6 @@ export async function analyzeEchoes(allNotes: string): Promise<any[]> {
   });
 
   const data: SyncResponse = await response.json();
-  console.log('✅ Got echoes response:', data);
 
   if (!data.success) {
     throw new Error(data.error || 'Echoes analysis failed');
@@ -151,8 +142,6 @@ export async function analyzeEchoes(allNotes: string): Promise<any[]> {
  * Analyze traits (personality characteristics) from all notes (sync API - no polling!)
  */
 export async function analyzeTraits(allNotes: string): Promise<any[]> {
-  console.log('👤 Sending traits analysis request (sync API)...');
-
   const response = await fetch(`${API_BASE}/api/analyze-traits`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -160,7 +149,6 @@ export async function analyzeTraits(allNotes: string): Promise<any[]> {
   });
 
   const data: SyncResponse = await response.json();
-  console.log('✅ Got traits response:', data);
 
   if (!data.success) {
     throw new Error(data.error || 'Traits analysis failed');
@@ -173,8 +161,6 @@ export async function analyzeTraits(allNotes: string): Promise<any[]> {
  * Analyze patterns (behavioral patterns) from all notes (sync API - no polling!)
  */
 export async function analyzePatterns(allNotes: string): Promise<any[]> {
-  console.log('🔍 Sending patterns analysis request (sync API)...');
-
   const response = await fetch(`${API_BASE}/api/analyze-patterns`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -182,7 +168,6 @@ export async function analyzePatterns(allNotes: string): Promise<any[]> {
   });
 
   const data: SyncResponse = await response.json();
-  console.log('✅ Got patterns response:', data);
 
   if (!data.success) {
     throw new Error(data.error || 'Patterns analysis failed');
@@ -195,8 +180,6 @@ export async function analyzePatterns(allNotes: string): Promise<any[]> {
  * Generate a daily picture based on user's notes (sync API - no polling!)
  */
 export async function generateDailyPicture(allNotes: string): Promise<{ image_base64: string; prompt: string }> {
-  console.log('🎨 Sending image generation request (sync API)...');
-
   const response = await fetch(`${API_BASE}/api/generate-image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -204,7 +187,6 @@ export async function generateDailyPicture(allNotes: string): Promise<{ image_ba
   });
 
   const data: SyncResponse = await response.json();
-  console.log('✅ Got image response:', data);
 
   if (!data.success) {
     throw new Error(data.error || 'Image generation failed');

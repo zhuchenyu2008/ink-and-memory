@@ -489,7 +489,6 @@ export class EditorEngine {
 
         if (mergedCells > 0) {
           mergeCount += mergedCells;
-          console.log(`🔗 Merged ${mergedCells + 1} consecutive text cells into one`);
         }
 
         // Add merged text cell
@@ -504,10 +503,6 @@ export class EditorEngine {
         merged.push(cell);
         i++;
       }
-    }
-
-    if (mergeCount > 0) {
-      console.log(`✅ Total merged: ${mergeCount} cells → Final cell count: ${merged.length}`);
     }
 
     this.state.cells = merged;
@@ -538,16 +533,13 @@ export class EditorEngine {
         if (hasNewlineBefore) {
           // Remove the newline before @ and the @
           newText = text.substring(0, atPosition - 1) + text.substring(cursorPosition);
-          console.log('✂️ Removed newline before @ and the @');
         } else {
           // Just remove @
           newText = text.substring(0, atPosition) + text.substring(cursorPosition);
-          console.log('✂️ Removed @ only (first line)');
         }
       } else {
         // @ is not alone - just remove @
         newText = text.substring(0, atPosition) + text.substring(cursorPosition);
-        console.log('✂️ Removed @ only (inline)');
       }
       (cell as TextCell).content = newText;
 

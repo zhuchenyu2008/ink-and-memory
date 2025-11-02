@@ -324,7 +324,6 @@ export default function App() {
       // Small delay to ensure StateChooser has collapsed and DOM has settled
       const timer = setTimeout(() => {
         setRefsReady(prev => prev + 1);
-        console.log('📐 StateChooser collapsed, recalculating positions');
       }, 50);
       return () => clearTimeout(timer);
     }
@@ -862,7 +861,6 @@ export default function App() {
       try {
         const { saveSession } = await import('./api/voiceApi');
         await saveSession(emptyState.sessionId, emptyState);
-        console.log(`✅ Created new session: ${newSessionId}`);
       } catch (error) {
         console.error('Failed to save new session:', error);
       }
@@ -1016,8 +1014,6 @@ export default function App() {
 
       // Call backend migration endpoint
       const result = await importLocalData(migrationData);
-
-      console.log('✅ Migration complete:', result.imported);
 
       // Mark migration as complete
       localStorage.setItem(STORAGE_KEYS.MIGRATION_COMPLETED, 'true');

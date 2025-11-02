@@ -225,8 +225,19 @@ export async function importLocalData(data: {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Import failed');
+    // Handle 413 Payload Too Large (nginx returns HTML, not JSON)
+    if (response.status === 413) {
+      throw new Error('413: Request too large - your data exceeds the server limit');
+    }
+
+    // Try to parse JSON error response
+    try {
+      const error = await response.json();
+      throw new Error(error.detail || 'Import failed');
+    } catch {
+      // If JSON parsing fails, throw generic error with status
+      throw new Error(`Import failed with status ${response.status}`);
+    }
   }
 
   return await response.json();

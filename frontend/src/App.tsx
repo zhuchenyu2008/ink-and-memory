@@ -1033,7 +1033,20 @@ export default function App() {
       alert(`Migration successful! Imported:\n- ${result.imported.sessions} sessions\n- ${result.imported.pictures} pictures\n- ${result.imported.preferences} preferences\n- ${result.imported.reports} reports`);
     } catch (error: any) {
       console.error('Migration failed:', error);
-      alert(`Migration failed: ${error.message}\n\nYou can try again later from Settings.`);
+
+      // Provide helpful error message based on error type
+      let errorMsg = 'Migration failed: ';
+      if (error.message?.includes('413') || error.message?.includes('too large')) {
+        errorMsg += 'Your data is too large to migrate in one request.\n\n';
+        errorMsg += 'This is a known issue that will be fixed soon.\n';
+        errorMsg += 'For now, you can:\n';
+        errorMsg += '1. Skip migration and start fresh, or\n';
+        errorMsg += '2. Wait for the fix and try again later';
+      } else {
+        errorMsg += error.message + '\n\nYou can try again later from Settings.';
+      }
+
+      alert(errorMsg);
     } finally {
       setIsMigrating(false);
     }

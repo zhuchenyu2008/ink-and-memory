@@ -602,6 +602,12 @@ def import_local_data(request: ImportDataRequest, current_user: dict = Depends(g
 
     user_id = current_user['user_id']
 
+    print(f"\n🔍 Migration request for user {user_id}:")
+    print(f"  - currentSession: {len(request.currentSession) if request.currentSession else 0} chars")
+    print(f"  - calendarEntries: {len(request.calendarEntries) if request.calendarEntries else 0} chars")
+    print(f"  - dailyPictures: {len(request.dailyPictures) if request.dailyPictures else 0} chars")
+    print(f"  - oldDocument: {len(request.oldDocument) if request.oldDocument else 0} chars")
+
     # Extract sessions
     sessions = []
 
@@ -614,22 +620,28 @@ def import_local_data(request: ImportDataRequest, current_user: dict = Depends(g
                 'name': 'Current Session',
                 'editor_state': current
             })
-        except:
-            pass
+            print(f"✅ Imported current session ({len(str(current))} chars)")
+        except Exception as e:
+            print(f"❌ Failed to parse current session: {e}")
+            # Don't silently fail - this is critical data!
 
     # 2. Calendar entries
     if request.calendarEntries:
         try:
             calendar = json.loads(request.calendarEntries)
+            print(f"📅 Parsed calendar with {len(calendar)} dates")
             for date, entries in calendar.items():
+                print(f"  - {date}: {len(entries)} entries")
                 for entry in entries:
                     sessions.append({
                         'id': entry['id'],
                         'name': f"{date} - {entry.get('firstLine', 'Untitled')}",
                         'editor_state': entry['state']
                     })
-        except:
-            pass
+        except Exception as e:
+            print(f"❌ Failed to parse calendar entries: {e}")
+            import traceback
+            traceback.print_exc()
 
     # 3. Old document (if exists)
     if request.oldDocument:
@@ -734,6 +746,55 @@ def save_session(
     database.save_session(user_id, session_id, editor_state, name)
 
     return {"success": True}
+
+@app.post("/api/import-calendar-recovery")
+def import_calendar_recovery(
+    request: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Recovery endpoint to import calendar entries that were missed in initial migration.
+
+    Request body:
+    {
+        "calendarEntries": "{\"2025-11-01\": [...]}"  # JSON string
+    }
+    """
+    import json
+
+    user_id = current_user['user_id']
+    calendar_json = request.get('calendarEntries')
+
+    if not calendar_json:
+        raise HTTPException(status_code=400, detail="calendarEntries required")
+
+    sessions = []
+    try:
+        calendar = json.loads(calendar_json)
+        print(f"📅 Recovery import: {len(calendar)} dates")
+        for date, entries in calendar.items():
+            print(f"  - {date}: {len(entries)} entries")
+            for entry in entries:
+                sessions.append({
+                    'id': entry['id'],
+                    'name': f"{date} - {entry.get('firstLine', 'Untitled')}",
+                    'editor_state': entry['state']
+                })
+    except Exception as e:
+        print(f"❌ Failed to parse calendar: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"Failed to parse calendar: {str(e)}")
+
+    # Import to database
+    database.import_user_data(user_id, sessions, [], {}, [])
+
+    return {
+        "success": True,
+        "imported": {
+            "sessions": len(sessions)
+        }
+    }
 
 @app.get("/api/sessions")
 def list_sessions(current_user: dict = Depends(get_current_user)):

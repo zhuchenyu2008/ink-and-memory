@@ -1012,6 +1012,12 @@ export default function App() {
         oldDocument: localStorage.getItem('document') ?? undefined
       };
 
+      // Log what we're about to send
+      console.log('📦 Migration data being sent:');
+      console.log('  - currentSession:', migrationData.currentSession ? `${migrationData.currentSession.length} chars` : 'null');
+      console.log('  - calendarEntries:', migrationData.calendarEntries ? `${migrationData.calendarEntries.length} chars` : 'null');
+      console.log('  - dailyPictures:', migrationData.dailyPictures ? `${migrationData.dailyPictures.length} chars` : 'null');
+
       // Call backend migration endpoint
       const result = await importLocalData(migrationData);
 

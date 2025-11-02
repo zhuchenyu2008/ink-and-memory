@@ -1,5 +1,5 @@
 /**
- * API client for voice analysis backend
+ * API client for voice analysis backend - FastAPI sync API version
  */
 
 // nginx proxies /ink-and-memory/api/* to backend (8765)
@@ -13,14 +13,8 @@ export async function getDefaultVoices(): Promise<any> {
   return await response.json();
 }
 
-interface TriggerResponse {
+interface SyncResponse {
   success: boolean;
-  exec_id: string;
-}
-
-interface StatusResponse {
-  exec_id: string;
-  status: 'running' | 'completed' | 'failed';
   result?: {
     voices?: Array<{
       phrase: string;
@@ -29,7 +23,7 @@ interface StatusResponse {
       icon: string;
       color: string;
     }>;
-    new_voices_added?: number;  // @@@ Number of new voices from this LLM call
+    new_voices_added?: number;
     status?: string;
     response?: string;  // For chat responses
     voice_name?: string;  // For chat responses
@@ -40,82 +34,45 @@ interface StatusResponse {
     prompt?: string;  // Image generation prompt
   };
   error?: string;
+  exec_id?: string;  // Still included for debugging
 }
 
 /**
- * Trigger voice analysis session
+ * Analyze text and return voices with metadata (sync API - no polling!)
  */
-export async function triggerAnalysis(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]): Promise<string> {
-  console.log('📤 Sending trigger request...');
-  const response = await fetch(`${API_BASE}/api/trigger`, {
+export async function analyzeText(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]) {
+  console.log('📤 Sending analyze request (sync API)...');
+
+  const response = await fetch(`${API_BASE}/api/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      session_id: 'analyze_text',
-      params: { text, session_id: sessionId, voices, applied_comments: appliedComments || [], meta_prompt: metaPrompt || '', state_prompt: statePrompt || '', overlapped_phrases: overlappedPhrases || [] }
+      text,
+      session_id: sessionId,
+      voices,
+      applied_comments: appliedComments || [],
+      meta_prompt: metaPrompt || '',
+      state_prompt: statePrompt || '',
+      overlapped_phrases: overlappedPhrases || []
     })
   });
 
-  console.log('📥 Got response, status:', response.status);
-  const data: TriggerResponse = await response.json();
-  console.log('📋 Parsed JSON:', data);
+  const data: SyncResponse = await response.json();
+  console.log('✅ Got sync response:', data);
 
   if (!data.success) {
-    throw new Error('Failed to trigger analysis');
+    throw new Error(data.error || 'Analysis failed');
   }
 
-  console.log('✅ Exec ID:', data.exec_id);
-  return data.exec_id;
-}
-
-/**
- * Get analysis result (polls until completed)
- */
-export async function getAnalysisResult(exec_id: string): Promise<StatusResponse['result']> {
-  // Poll every 500ms, max 2 minutes (enough for image generation)
-  const maxAttempts = 240;
-  let attempts = 0;
-
-  console.log('🔄 Starting to poll for exec_id:', exec_id);
-
-  while (attempts < maxAttempts) {
-    console.log(`📊 Polling attempt ${attempts + 1}/${maxAttempts}...`);
-    const response = await fetch(`${API_BASE}/api/status/${exec_id}`);
-    const data: StatusResponse = await response.json();
-    console.log('📊 Status:', data.status);
-
-    if (data.status === 'completed') {
-      console.log('✅ Analysis completed!', data.result);
-      return data.result;
-    }
-
-    if (data.status === 'failed') {
-      throw new Error(data.error || 'Analysis failed');
-    }
-
-    // Still running, wait and retry
-    await new Promise(resolve => setTimeout(resolve, 500));
-    attempts++;
-  }
-
-  throw new Error('Analysis timeout');
-}
-
-/**
- * Analyze text and return voices with metadata (all-in-one)
- */
-export async function analyzeText(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]) {
-  const exec_id = await triggerAnalysis(text, sessionId, voices, appliedComments, metaPrompt, statePrompt, overlappedPhrases);
-  const result = await getAnalysisResult(exec_id);
-  // @@@ Return both voices and new_voices_added for energy refund mechanism
+  // Return both voices and new_voices_added for energy refund mechanism
   return {
-    voices: result?.voices || [],
-    new_voices_added: result?.new_voices_added ?? 0
+    voices: data.result?.voices || [],
+    new_voices_added: data.result?.new_voices_added ?? 0
   };
 }
 
 /**
- * Chat with a voice persona
+ * Chat with a voice persona (sync API - no polling!)
  */
 export async function chatWithVoice(
   voiceName: string,
@@ -126,140 +83,123 @@ export async function chatWithVoice(
   metaPrompt?: string,
   statePrompt?: string
 ): Promise<string> {
-  console.log('💬 Sending chat request to backend...');
+  console.log('💬 Sending chat request (sync API)...');
 
-  // Trigger chat session
-  const response = await fetch(`${API_BASE}/api/trigger`, {
+  const response = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      session_id: 'chat_with_voice',
-      params: {
-        voice_name: voiceName,
-        voice_config: voiceConfig,
-        conversation_history: conversationHistory,
-        user_message: userMessage,
-        original_text: originalText || '',
-        meta_prompt: metaPrompt || '',
-        state_prompt: statePrompt || ''
-      }
+      voice_name: voiceName,
+      voice_config: voiceConfig,
+      conversation_history: conversationHistory,
+      user_message: userMessage,
+      original_text: originalText || '',
+      meta_prompt: metaPrompt || '',
+      state_prompt: statePrompt || ''
     })
   });
 
-  const data: TriggerResponse = await response.json();
+  const data: SyncResponse = await response.json();
+  console.log('✅ Got chat response:', data);
+
   if (!data.success) {
-    throw new Error('Failed to trigger chat');
+    throw new Error(data.error || 'Chat failed');
   }
 
-  console.log('✅ Chat triggered, exec_id:', data.exec_id);
-
-  // Poll for result
-  const result = await getAnalysisResult(data.exec_id);
-  console.log('✅ Got chat response:', result);
-
-  return result?.response || 'Sorry, I could not respond.';
+  return data.result?.response || 'Sorry, I could not respond.';
 }
 
 /**
- * Analyze echoes (recurring themes) from all notes
+ * Analyze echoes (recurring themes) from all notes (sync API - no polling!)
  */
 export async function analyzeEchoes(allNotes: string): Promise<any[]> {
-  console.log('🔄 Sending echoes analysis request...');
+  console.log('🔄 Sending echoes analysis request (sync API)...');
 
-  const response = await fetch(`${API_BASE}/api/trigger`, {
+  const response = await fetch(`${API_BASE}/api/analyze-echoes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: 'analyze_echoes',
-      params: { all_notes: allNotes }
-    })
+    body: JSON.stringify({ all_notes: allNotes })
   });
 
-  const data: TriggerResponse = await response.json();
+  const data: SyncResponse = await response.json();
+  console.log('✅ Got echoes response:', data);
+
   if (!data.success) {
-    throw new Error('Failed to trigger echoes analysis');
+    throw new Error(data.error || 'Echoes analysis failed');
   }
 
-  const result = await getAnalysisResult(data.exec_id);
-  return result?.echoes || [];
+  return data.result?.echoes || [];
 }
 
 /**
- * Analyze traits (personality characteristics) from all notes
+ * Analyze traits (personality characteristics) from all notes (sync API - no polling!)
  */
 export async function analyzeTraits(allNotes: string): Promise<any[]> {
-  console.log('👤 Sending traits analysis request...');
+  console.log('👤 Sending traits analysis request (sync API)...');
 
-  const response = await fetch(`${API_BASE}/api/trigger`, {
+  const response = await fetch(`${API_BASE}/api/analyze-traits`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: 'analyze_traits',
-      params: { all_notes: allNotes }
-    })
+    body: JSON.stringify({ all_notes: allNotes })
   });
 
-  const data: TriggerResponse = await response.json();
+  const data: SyncResponse = await response.json();
+  console.log('✅ Got traits response:', data);
+
   if (!data.success) {
-    throw new Error('Failed to trigger traits analysis');
+    throw new Error(data.error || 'Traits analysis failed');
   }
 
-  const result = await getAnalysisResult(data.exec_id);
-  return result?.traits || [];
+  return data.result?.traits || [];
 }
 
 /**
- * Analyze patterns (behavioral patterns) from all notes
+ * Analyze patterns (behavioral patterns) from all notes (sync API - no polling!)
  */
 export async function analyzePatterns(allNotes: string): Promise<any[]> {
-  console.log('🔍 Sending patterns analysis request...');
+  console.log('🔍 Sending patterns analysis request (sync API)...');
 
-  const response = await fetch(`${API_BASE}/api/trigger`, {
+  const response = await fetch(`${API_BASE}/api/analyze-patterns`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: 'analyze_patterns',
-      params: { all_notes: allNotes }
-    })
+    body: JSON.stringify({ all_notes: allNotes })
   });
 
-  const data: TriggerResponse = await response.json();
+  const data: SyncResponse = await response.json();
+  console.log('✅ Got patterns response:', data);
+
   if (!data.success) {
-    throw new Error('Failed to trigger patterns analysis');
+    throw new Error(data.error || 'Patterns analysis failed');
   }
 
-  const result = await getAnalysisResult(data.exec_id);
-  return result?.patterns || [];
+  return data.result?.patterns || [];
 }
 
 /**
- * Generate a daily picture based on user's notes
+ * Generate a daily picture based on user's notes (sync API - no polling!)
  */
 export async function generateDailyPicture(allNotes: string): Promise<{ image_base64: string; prompt: string }> {
-  console.log('🎨 Sending image generation request...');
+  console.log('🎨 Sending image generation request (sync API)...');
 
-  const response = await fetch(`${API_BASE}/api/trigger`, {
+  const response = await fetch(`${API_BASE}/api/generate-image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: 'generate_daily_picture',
-      params: { all_notes: allNotes }
-    })
+    body: JSON.stringify({ all_notes: allNotes })
   });
 
-  const data: TriggerResponse = await response.json();
+  const data: SyncResponse = await response.json();
+  console.log('✅ Got image response:', data);
+
   if (!data.success) {
-    throw new Error('Failed to trigger image generation');
+    throw new Error(data.error || 'Image generation failed');
   }
 
-  const result = await getAnalysisResult(data.exec_id);
-
-  if (result?.image_base64) {
+  if (data.result?.image_base64) {
     return {
-      image_base64: result.image_base64,
-      prompt: result.prompt || 'Generated from your notes'
+      image_base64: data.result.image_base64,
+      prompt: data.result.prompt || 'Generated from your notes'
     };
   }
 
-  throw new Error('Image generation failed');
+  throw new Error('Image generation failed - no image in response');
 }

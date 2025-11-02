@@ -1,12 +1,23 @@
 #!/usr/bin/env python3
-"""Stateless voice analysis server - no state tracking, just returns new comments."""
+"""FastAPI-based voice analysis server with sync API support."""
 
-import time
+import httpx
+from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.middleware.cors import CORSMiddleware
 from polycli.orchestration.session_registry import session_def, get_registry
+from polycli.integrations.fastapi import mount_control_panel
 from polycli import PolyAgent
 from stateless_analyzer import analyze_stateless
 import config
 from proxy_config import get_image_api_proxies
+from typing import Optional
+from pydantic import BaseModel
+
+# Import database and auth modules
+import database
+import auth
+
+# ========== Session Definitions (PolyCLI) ==========
 
 @session_def(
     name="Chat with Voice",
@@ -23,20 +34,7 @@ from proxy_config import get_image_api_proxies
     category="Chat"
 )
 def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: list, user_message: str, original_text: str = "", meta_prompt: str = "", state_prompt: str = ""):
-    """
-    Chat with a specific voice persona.
-
-    Args:
-        voice_name: Name of the voice (e.g., "Logic", "Drama")
-        voice_config: Voice configuration with tagline, icon, color
-        conversation_history: Previous messages in the conversation
-        user_message: The user's new message
-        original_text: The user's original writing text
-        meta_prompt: Additional instructions that apply to all voices
-
-    Returns:
-        Dictionary with assistant's response
-    """
+    """Chat with a specific voice persona."""
     print(f"\n{'='*60}")
     print(f"💬 chat_with_voice() called")
     print(f"   Voice: {voice_name}")
@@ -79,7 +77,7 @@ Your initial comment was about this text. Keep this context in mind when respond
 Additional instructions:
 {meta_prompt.strip()}"""
 
-    # @@@ Add state prompt if available (between meta and voice-specific)
+    # Add state prompt if available
     if state_prompt and state_prompt.strip():
         system_prompt += f"""
 
@@ -126,21 +124,7 @@ User's current state:
     category="Analysis"
 )
 def analyze_text(text: str, session_id: str, voices: dict = None, applied_comments: list = None, meta_prompt: str = "", state_prompt: str = "", overlapped_phrases: list = None):
-    """
-    Stateless analysis - returns ONE new comment based on text and applied comments.
-
-    Args:
-        text: Text to analyze (should be complete sentences only)
-        session_id: Session ID (for future use)
-        voices: Voice configuration
-        applied_comments: List of already applied comments (to avoid duplicates)
-        meta_prompt: Additional instructions that apply to all voices
-        state_prompt: User's current emotional state prompt
-        overlapped_phrases: Phrases that were rejected due to overlap (feedback loop)
-
-    Returns:
-        Dictionary with single new voice (or empty list)
-    """
+    """Stateless analysis - returns ONE new comment based on text and applied comments."""
     print(f"\n{'='*60}")
     print(f"🎯 Stateless analyze_text() called")
     print(f"   Text: {text[:100]}...")
@@ -319,12 +303,7 @@ Return ONLY the JSON array, no other text."""
     category="Creative"
 )
 def generate_daily_picture(all_notes: str):
-    """Generate an image based on the essence of user's daily notes.
-
-    Uses a two-step process:
-    1. LLM analyzes notes and creates artistic image description
-    2. Image generation model creates the image
-    """
+    """Generate an image based on the essence of user's daily notes."""
     print(f"\n{'='*60}")
     print(f"🎨 generate_daily_picture() called")
     print(f"   Notes length: {len(all_notes)} chars")
@@ -332,8 +311,7 @@ def generate_daily_picture(all_notes: str):
 
     import requests
 
-    # @@@ Step 1: Convert notes to artistic image description using Claude Haiku
-
+    # Step 1: Convert notes to artistic image description using Claude Haiku
     description_prompt = f"""Read these personal notes and create a vivid, artistic image description that captures the essence, mood, and themes.
 
 Notes:
@@ -353,7 +331,7 @@ Return ONLY the image description, no other text."""
 
     print("🧠 Creating image description from notes with Claude Haiku...")
 
-    # @@@ Use proxy for GFW bypass (if configured)
+    # Use proxy for GFW bypass (if configured)
     proxies = get_image_api_proxies()
 
     claude_response = requests.post(
@@ -382,7 +360,7 @@ Return ONLY the image description, no other text."""
 
     print(f"📝 Image description: {image_description}")
 
-    # @@@ Step 2: Generate image from description with retry logic
+    # Step 2: Generate image from description with retry logic
     url = f"{config.IMAGE_API_ENDPOINT}/chat/completions"
     headers = {
         "Authorization": f"Bearer {config.IMAGE_API_KEY}",
@@ -400,7 +378,7 @@ Return ONLY the image description, no other text."""
         "max_tokens": config.IMAGE_MAX_TOKENS
     }
 
-    # @@@ Retry logic with increasing timeouts
+    # Retry logic with increasing timeouts
     for attempt in range(1, config.IMAGE_RETRY_MAX_ATTEMPTS + 1):
         try:
             timeout_seconds = config.IMAGE_RETRY_BASE_TIMEOUT + (attempt - 1) * config.IMAGE_RETRY_TIMEOUT_INCREMENT
@@ -456,43 +434,590 @@ Return ONLY the image description, no other text."""
 
     return {"image_base64": None, "error": "All retry attempts failed"}
 
-if __name__ == "__main__":
-    # Get the global registry
-    registry = get_registry()
+# ========== FastAPI Application ==========
 
-    # Start the control panel
-    print("\n" + "="*60)
-    print("🎭 Stateless Voice Analysis Server")
-    print("="*60)
+app = FastAPI(
+    title="Ink & Memory API",
+    description="Voice analysis and creative generation API",
+    version="2.0.0"
+)
 
-    # Monkey-patch to add /api/default-voices endpoint
-    server, thread = registry.serve_control_panel(port=8765)
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, restrict to specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    original_do_get = server.RequestHandlerClass.do_GET
-    def patched_do_get(handler_self):
-        if handler_self.path == "/api/default-voices":
-            import json
-            body = json.dumps(config.VOICE_ARCHETYPES).encode("utf-8")
-            handler_self.send_response(200)
-            handler_self.send_header("Content-Type", "application/json")
-            handler_self.send_header("Access-Control-Allow-Origin", "*")
-            handler_self.end_headers()
-            handler_self.wfile.write(body)
-        else:
-            original_do_get(handler_self)
+# ========== Request/Response Models ==========
 
-    server.RequestHandlerClass.do_GET = patched_do_get
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    display_name: Optional[str] = None
 
-    print("\n📚 Available endpoints:")
-    print("  - POST /api/trigger")
-    print("    Body: {\"session_id\": \"analyze_text\", \"params\": {\"text\": \"...\", \"applied_comments\": [...]}}")
-    print("    Body: {\"session_id\": \"chat_with_voice\", \"params\": {\"voice_name\": \"...\", \"user_message\": \"...\", ...}}")
-    print("  - GET /api/default-voices")
-    print("\n" + "="*60 + "\n")
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
-    # Keep server running
+class TokenResponse(BaseModel):
+    token: str
+    user: dict
+
+class ImportDataRequest(BaseModel):
+    currentSession: Optional[str] = None
+    calendarEntries: Optional[str] = None
+    dailyPictures: Optional[str] = None
+    voiceCustomizations: Optional[str] = None
+    metaPrompt: Optional[str] = None
+    stateConfig: Optional[str] = None
+    selectedState: Optional[str] = None
+    analysisReports: Optional[str] = None
+    oldDocument: Optional[str] = None
+
+# ========== Auth Dependency ==========
+
+def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+    """
+    Dependency to extract and verify JWT token from Authorization header.
+
+    Raises:
+        HTTPException 401 if token is missing or invalid
+    """
+    token = auth.extract_token_from_header(authorization)
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing authorization token")
+
+    user_data = auth.verify_access_token(token)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    return user_data
+
+# ========== Custom API Endpoints (Clean Interface) ==========
+
+@app.get("/")
+def root():
+    """Root endpoint"""
+    return {
+        "service": "Ink & Memory API",
+        "version": "2.0.0",
+        "docs": "/docs",
+        "control_panel": "/polycli"
+    }
+
+# ========== Auth Endpoints ==========
+
+@app.post("/api/register", response_model=TokenResponse)
+def register(request: RegisterRequest):
+    """
+    Register a new user.
+
+    Returns JWT token and user info.
+    """
+    # Validate input
+    if not request.email or not request.password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+
+    if len(request.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    # Hash password
+    password_hash = auth.hash_password(request.password)
+
+    # Create user
     try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n\n👋 Shutting down...")
+        user_id = database.create_user(request.email, password_hash, request.display_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Generate token
+    token = auth.create_access_token(user_id, request.email)
+
+    return {
+        "token": token,
+        "user": {
+            "id": user_id,
+            "email": request.email,
+            "display_name": request.display_name
+        }
+    }
+
+@app.post("/api/login", response_model=TokenResponse)
+def login(request: LoginRequest):
+    """
+    Login with email and password.
+
+    Returns JWT token and user info.
+    """
+    # Get user by email
+    user = database.get_user_by_email(request.email)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Verify password
+    if not auth.verify_password(request.password, user['password_hash']):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Generate token
+    token = auth.create_access_token(user['id'], user['email'])
+
+    return {
+        "token": token,
+        "user": {
+            "id": user['id'],
+            "email": user['email'],
+            "display_name": user['display_name']
+        }
+    }
+
+@app.get("/api/me")
+def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """
+    Get current user info from token.
+
+    Requires Authorization header with Bearer token.
+    """
+    user = database.get_user_by_id(current_user['user_id'])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "id": user['id'],
+        "email": user['email'],
+        "display_name": user['display_name'],
+        "created_at": user['created_at']
+    }
+
+@app.post("/api/import-local-data")
+def import_local_data(request: ImportDataRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Import localStorage data to database on first login.
+
+    Extracts sessions, pictures, preferences, and reports from localStorage export.
+    """
+    import json
+
+    user_id = current_user['user_id']
+
+    # Extract sessions
+    sessions = []
+
+    # 1. Current session
+    if request.currentSession:
+        try:
+            current = json.loads(request.currentSession)
+            sessions.append({
+                'id': 'current-session',
+                'name': 'Current Session',
+                'editor_state': current
+            })
+        except:
+            pass
+
+    # 2. Calendar entries
+    if request.calendarEntries:
+        try:
+            calendar = json.loads(request.calendarEntries)
+            for date, entries in calendar.items():
+                for entry in entries:
+                    sessions.append({
+                        'id': entry['id'],
+                        'name': f"{date} - {entry.get('firstLine', 'Untitled')}",
+                        'editor_state': entry['state']
+                    })
+        except:
+            pass
+
+    # 3. Old document (if exists)
+    if request.oldDocument:
+        try:
+            old_doc = json.loads(request.oldDocument)
+            if old_doc and old_doc.get('document'):
+                sessions.append({
+                    'id': 'old-document',
+                    'name': 'Old Document (migrated)',
+                    'editor_state': {'cells': [{'type': 'text', 'content': str(old_doc)}]}
+                })
+        except:
+            pass
+
+    # Extract pictures
+    pictures = []
+    if request.dailyPictures:
+        try:
+            pics = json.loads(request.dailyPictures)
+            for pic in pics:
+                pictures.append({
+                    'date': pic['date'],
+                    'image_base64': pic['base64'],
+                    'prompt': pic.get('prompt', '')
+                })
+        except:
+            pass
+
+    # Extract preferences
+    preferences = {}
+    if request.voiceCustomizations:
+        try:
+            preferences['voice_configs'] = json.loads(request.voiceCustomizations)
+        except:
+            pass
+
+    if request.metaPrompt:
+        preferences['meta_prompt'] = request.metaPrompt
+
+    if request.stateConfig:
+        try:
+            preferences['state_config'] = json.loads(request.stateConfig)
+        except:
+            pass
+
+    if request.selectedState:
+        preferences['selected_state'] = request.selectedState
+
+    # Extract reports
+    reports = []
+    if request.analysisReports:
+        try:
+            report_list = json.loads(request.analysisReports)
+            for report in report_list:
+                reports.append({
+                    'type': report.get('type', 'unknown'),
+                    'data': report.get('data', {}),
+                    'allNotes': report.get('allNotes', ''),
+                    'timestamp': report.get('timestamp', '')
+                })
+        except:
+            pass
+
+    # Import to database
+    database.import_user_data(user_id, sessions, pictures, preferences, reports)
+
+    return {
+        "success": True,
+        "imported": {
+            "sessions": len(sessions),
+            "pictures": len(pictures),
+            "preferences": len([k for k, v in preferences.items() if v]),
+            "reports": len(reports)
+        }
+    }
+
+# ========== Session Storage Endpoints ==========
+
+@app.post("/api/sessions")
+def save_session(
+    request: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save or update a session.
+
+    Request body:
+    {
+        "session_id": "string",
+        "name": "optional string",
+        "editor_state": {...}
+    }
+    """
+    user_id = current_user['user_id']
+    session_id = request.get('session_id')
+    editor_state = request.get('editor_state')
+    name = request.get('name')
+
+    if not session_id or not editor_state:
+        raise HTTPException(status_code=400, detail="session_id and editor_state required")
+
+    database.save_session(user_id, session_id, editor_state, name)
+
+    return {"success": True}
+
+@app.get("/api/sessions")
+def list_sessions(current_user: dict = Depends(get_current_user)):
+    """
+    List all sessions for current user.
+
+    Returns: Array of session metadata (without full editor state)
+    """
+    user_id = current_user['user_id']
+    sessions = database.list_sessions(user_id)
+    return {"sessions": sessions}
+
+@app.get("/api/sessions/{session_id}")
+def get_session(session_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Get a specific session by ID.
+
+    Returns: Full session including editor_state
+    """
+    user_id = current_user['user_id']
+    session = database.get_session(user_id, session_id)
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return session
+
+@app.delete("/api/sessions/{session_id}")
+def delete_session_endpoint(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a session."""
+    user_id = current_user['user_id']
+    database.delete_session(user_id, session_id)
+    return {"success": True}
+
+# ========== Pictures Endpoints ==========
+
+@app.get("/api/pictures")
+def get_pictures(
+    limit: int = 30,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get recent daily pictures for current user.
+
+    Query params:
+    - limit: Max number of pictures to return (default 30)
+    """
+    user_id = current_user['user_id']
+    pictures = database.get_daily_pictures(user_id, limit)
+    return {"pictures": pictures}
+
+@app.post("/api/pictures")
+def save_picture(
+    request: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save a daily picture.
+
+    Request body:
+    {
+        "date": "YYYY-MM-DD",
+        "image_base64": "base64 string",
+        "prompt": "optional prompt"
+    }
+    """
+    user_id = current_user['user_id']
+    date = request.get('date')
+    image_base64 = request.get('image_base64')
+    prompt = request.get('prompt', '')
+
+    if not date or not image_base64:
+        raise HTTPException(status_code=400, detail="date and image_base64 required")
+
+    database.save_daily_picture(user_id, date, image_base64, prompt)
+    return {"success": True}
+
+# ========== Preferences Endpoints ==========
+
+@app.get("/api/preferences")
+def get_preferences(current_user: dict = Depends(get_current_user)):
+    """Get user preferences."""
+    user_id = current_user['user_id']
+    preferences = database.get_preferences(user_id)
+    return preferences or {}
+
+@app.post("/api/preferences")
+def save_preferences_endpoint(
+    request: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save user preferences.
+
+    Request body can contain any of:
+    - voice_configs: dict
+    - meta_prompt: str
+    - state_config: dict
+    - selected_state: str
+    """
+    user_id = current_user['user_id']
+
+    database.save_preferences(
+        user_id,
+        voice_configs=request.get('voice_configs'),
+        meta_prompt=request.get('meta_prompt'),
+        state_config=request.get('state_config'),
+        selected_state=request.get('selected_state')
+    )
+
+    return {"success": True}
+
+# ========== Analysis Reports Endpoints ==========
+
+@app.get("/api/reports")
+def get_reports(
+    limit: int = 10,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get recent analysis reports."""
+    user_id = current_user['user_id']
+    reports = database.get_analysis_reports(user_id, limit)
+    return {"reports": reports}
+
+@app.post("/api/reports")
+def save_report(
+    request: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save an analysis report.
+
+    Request body:
+    {
+        "report_type": "echoes" | "traits" | "patterns",
+        "report_data": {...},
+        "all_notes_text": "optional text"
+    }
+    """
+    user_id = current_user['user_id']
+    report_type = request.get('report_type')
+    report_data = request.get('report_data')
+    all_notes_text = request.get('all_notes_text', '')
+
+    if not report_type or not report_data:
+        raise HTTPException(status_code=400, detail="report_type and report_data required")
+
+    database.save_analysis_report(user_id, report_type, report_data, all_notes_text)
+    return {"success": True}
+
+@app.get("/api/default-voices")
+def get_default_voices():
+    """Get default voice configurations"""
+    return config.VOICE_ARCHETYPES
+
+@app.post("/api/analyze")
+async def analyze_api(request_data: dict):
+    """
+    @@@ Analyze text and return ONE new voice comment (sync API).
+
+    Uses PolyCLI's sync API internally - no polling needed!
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8765/polycli/api/trigger-sync",
+            json={
+                "session_id": "analyze_text",
+                "params": request_data,
+                "timeout": 30.0
+            },
+            timeout=35.0
+        )
+        return response.json()
+
+@app.post("/api/chat")
+async def chat_api(request_data: dict):
+    """
+    @@@ Chat with a voice persona (sync API).
+
+    Uses PolyCLI's sync API internally - no polling needed!
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8765/polycli/api/trigger-sync",
+            json={
+                "session_id": "chat_with_voice",
+                "params": request_data,
+                "timeout": 30.0
+            },
+            timeout=35.0
+        )
+        return response.json()
+
+@app.post("/api/generate-image")
+async def generate_image_api(request_data: dict):
+    """
+    @@@ Generate artistic image from notes (sync API).
+
+    This may take longer (60s timeout) due to image generation.
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8765/polycli/api/trigger-sync",
+            json={
+                "session_id": "generate_daily_picture",
+                "params": request_data,
+                "timeout": 60.0  # Image generation takes longer
+            },
+            timeout=65.0
+        )
+        return response.json()
+
+@app.post("/api/analyze-echoes")
+async def analyze_echoes_api(request_data: dict):
+    """Analyze recurring themes in notes (sync API)."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8765/polycli/api/trigger-sync",
+            json={
+                "session_id": "analyze_echoes",
+                "params": request_data,
+                "timeout": 30.0
+            },
+            timeout=35.0
+        )
+        return response.json()
+
+@app.post("/api/analyze-traits")
+async def analyze_traits_api(request_data: dict):
+    """Analyze personality traits from notes (sync API)."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8765/polycli/api/trigger-sync",
+            json={
+                "session_id": "analyze_traits",
+                "params": request_data,
+                "timeout": 30.0
+            },
+            timeout=35.0
+        )
+        return response.json()
+
+@app.post("/api/analyze-patterns")
+async def analyze_patterns_api(request_data: dict):
+    """Analyze behavioral patterns from notes (sync API)."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8765/polycli/api/trigger-sync",
+            json={
+                "session_id": "analyze_patterns",
+                "params": request_data,
+                "timeout": 30.0
+            },
+            timeout=35.0
+        )
+        return response.json()
+
+# ========== Mount PolyCLI Control Panel ==========
+
+registry = get_registry()
+mount_control_panel(app, registry, prefix="/polycli")
+
+# ========== Main ==========
+
+if __name__ == "__main__":
+    import uvicorn
+
+    print("\n" + "="*60)
+    print("🎭 Ink & Memory FastAPI Server")
+    print("="*60)
+    print("\n📚 API Endpoints:")
+    print("  Clean API:")
+    print("    POST /api/analyze         - Analyze text (sync)")
+    print("    POST /api/chat            - Chat with voice (sync)")
+    print("    POST /api/generate-image  - Generate image (sync)")
+    print("    POST /api/analyze-echoes  - Find themes (sync)")
+    print("    POST /api/analyze-traits  - Identify traits (sync)")
+    print("    POST /api/analyze-patterns - Find patterns (sync)")
+    print("    GET  /api/default-voices  - Get voice configs")
+    print("\n  PolyCLI Control Panel:")
+    print("    /polycli                  - Control panel UI")
+    print("    /polycli/api/trigger-sync - Direct sync API")
+    print("\n  Documentation:")
+    print("    /docs                     - Auto-generated API docs")
+    print("="*60 + "\n")
+
+    uvicorn.run(app, host="127.0.0.1", port=8765)

@@ -4,6 +4,7 @@
 
 import { findNormalizedPhrase } from '../utils/textNormalize';
 import { debugLogger } from '../utils/debugLogger';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 // @@@ Core data model - cells + commentors + tasks + WeightPath
 export interface EditorState {
@@ -376,7 +377,7 @@ export class EditorEngine {
       const metaPrompt = getMetaPrompt();
 
       // Get state prompt from localStorage
-      const selectedState = localStorage.getItem('selected-state');
+      const selectedState = localStorage.getItem(STORAGE_KEYS.SELECTED_STATE);
       const stateConfig = getStateConfig();
       const statePrompt = selectedState && stateConfig.states[selectedState]
         ? stateConfig.states[selectedState].prompt

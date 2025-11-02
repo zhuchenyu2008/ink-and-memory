@@ -1,4 +1,5 @@
 import type { EditorState } from '../engine/EditorEngine';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export interface CalendarEntry {
   id: string;
@@ -11,10 +12,8 @@ export interface CalendarData {
   [date: string]: CalendarEntry[]; // date format: YYYY-MM-DD
 }
 
-const STORAGE_KEY = 'calendar-entries';
-
 export function getCalendarData(): CalendarData {
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES);
   if (!stored) return {};
   try {
     return JSON.parse(stored);
@@ -24,7 +23,7 @@ export function getCalendarData(): CalendarData {
 }
 
 export function saveCalendarData(data: CalendarData): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(STORAGE_KEYS.CALENDAR_ENTRIES, JSON.stringify(data));
 }
 
 export function getTodayKey(): string {

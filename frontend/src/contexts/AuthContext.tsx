@@ -6,6 +6,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const API_BASE = '/ink-and-memory';
 
@@ -34,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load token from localStorage on mount
   useEffect(() => {
-    const savedToken = localStorage.getItem('auth_token');
+    const savedToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     if (savedToken) {
       // Verify token by fetching user info
       fetch(`${API_BASE}/api/me`, {
@@ -52,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {
           // Token invalid, clear it
-          localStorage.removeItem('auth_token');
+          localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
         })
         .finally(() => {
           setIsLoading(false);
@@ -79,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await response.json();
     setUser(data.user);
     setToken(data.token);
-    localStorage.setItem('auth_token', data.token);
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
   };
 
   const register = async (email: string, password: string, displayName?: string) => {
@@ -103,13 +104,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await response.json();
     setUser(data.user);
     setToken(data.token);
-    localStorage.setItem('auth_token', data.token);
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('auth_token');
+    localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
   };
 
   return (
@@ -141,5 +142,5 @@ export function useAuth() {
  * Get current auth token for API calls
  */
 export function getAuthToken(): string | null {
-  return localStorage.getItem('auth_token');
+  return localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 }

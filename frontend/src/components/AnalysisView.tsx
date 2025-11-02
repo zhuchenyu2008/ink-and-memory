@@ -3,10 +3,10 @@ import { getCalendarData } from '../utils/calendarStorage';
 import { analyzeEchoes, analyzeTraits, analyzePatterns, saveAnalysisReport, getAnalysisReports } from '../api/voiceApi';
 import type { TextCell } from '../engine/EditorEngine';
 import { useAuth } from '../contexts/AuthContext';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 // @@@ Constants
 const MAX_SAVED_REPORTS = 10;
-const LOCALSTORAGE_KEY = 'analysis-reports-history';
 
 // @@@ Utility Functions
 
@@ -147,7 +147,7 @@ export default function AnalysisView() {
         }
       } else {
         // Guest mode: load from localStorage
-        const savedReportsData = localStorage.getItem(LOCALSTORAGE_KEY);
+        const savedReportsData = localStorage.getItem(STORAGE_KEYS.ANALYSIS_REPORTS);
         if (savedReportsData) {
           try {
             const reports = JSON.parse(savedReportsData);
@@ -273,7 +273,7 @@ export default function AnalysisView() {
       // Guest mode: save to localStorage
       const updatedReports = [newReport, ...savedReports];
       const limitedReports = updatedReports.slice(0, MAX_SAVED_REPORTS);
-      localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(limitedReports));
+      localStorage.setItem(STORAGE_KEYS.ANALYSIS_REPORTS, JSON.stringify(limitedReports));
       setSavedReports(limitedReports);
     }
 

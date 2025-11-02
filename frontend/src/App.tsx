@@ -29,6 +29,7 @@ import { findNormalizedPhrase } from './utils/textNormalize';
 import { useAuth } from './contexts/AuthContext';
 import LoginForm from './components/Auth/LoginForm';
 import RegisterForm from './components/Auth/RegisterForm';
+import { STORAGE_KEYS } from './constants/storageKeys';
 
 // @@@ Left Toolbar Component - floating toolbelt within left margin
 function LeftToolbar({
@@ -361,17 +362,17 @@ export default function App() {
     if (isAuthenticated && !isLoading) {
       // Check if user has localStorage data that needs migration
       const hasLocalData =
-        localStorage.getItem('ink_memory_state') ||
-        localStorage.getItem('calendarEntries') ||
-        localStorage.getItem('dailyPictures') ||
-        localStorage.getItem('voice-configs') ||
-        localStorage.getItem('meta-prompt') ||
-        localStorage.getItem('state-config') ||
-        localStorage.getItem('selected-state') ||
-        localStorage.getItem('analysisReports');
+        localStorage.getItem(STORAGE_KEYS.EDITOR_STATE) ||
+        localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES) ||
+        localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES) ||
+        localStorage.getItem(STORAGE_KEYS.VOICE_CONFIGS) ||
+        localStorage.getItem(STORAGE_KEYS.META_PROMPT) ||
+        localStorage.getItem(STORAGE_KEYS.STATE_CONFIG) ||
+        localStorage.getItem(STORAGE_KEYS.SELECTED_STATE) ||
+        localStorage.getItem(STORAGE_KEYS.ANALYSIS_REPORTS);
 
       // Check if migration already done (flag stored after migration)
-      const migrationDone = localStorage.getItem('migration_completed');
+      const migrationDone = localStorage.getItem(STORAGE_KEYS.MIGRATION_COMPLETED);
 
       if (hasLocalData && !migrationDone) {
         setShowMigrationDialog(true);
@@ -389,7 +390,7 @@ export default function App() {
       setState({ ...newState });
       // Only save to localStorage if not authenticated (guest mode)
       if (!isAuthenticated) {
-        localStorage.setItem('ink_memory_state', JSON.stringify(newState));
+        localStorage.setItem(STORAGE_KEYS.EDITOR_STATE, JSON.stringify(newState));
       }
     });
 
@@ -453,7 +454,7 @@ export default function App() {
         }
       } else {
         // Load from localStorage for guest mode
-        const saved = localStorage.getItem('ink_memory_state');
+        const saved = localStorage.getItem(STORAGE_KEYS.EDITOR_STATE);
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
@@ -474,7 +475,7 @@ export default function App() {
         }
 
         // @@@ Load selectedState from localStorage for guest mode
-        const savedState = localStorage.getItem('selected-state');
+        const savedState = localStorage.getItem(STORAGE_KEYS.SELECTED_STATE);
         if (savedState) {
           setSelectedState(savedState);
         }
@@ -843,8 +844,8 @@ export default function App() {
       }
     } else {
       // For guest users: clear localStorage
-      localStorage.removeItem('ink_memory_state');
-      localStorage.removeItem('selected-state');
+      localStorage.removeItem(STORAGE_KEYS.EDITOR_STATE);
+      localStorage.removeItem(STORAGE_KEYS.SELECTED_STATE);
     }
 
     window.location.reload();
@@ -904,7 +905,7 @@ export default function App() {
         console.error('Failed to save state to database:', error);
       }
     } else {
-      localStorage.setItem('selected-state', stateId);
+      localStorage.setItem(STORAGE_KEYS.SELECTED_STATE, stateId);
     }
   }, [isAuthenticated]);
 
@@ -980,14 +981,14 @@ export default function App() {
     try {
       // Export all localStorage data (convert null to undefined)
       const migrationData = {
-        currentSession: localStorage.getItem('ink_memory_state') ?? undefined,
-        calendarEntries: localStorage.getItem('calendarEntries') ?? undefined,
-        dailyPictures: localStorage.getItem('dailyPictures') ?? undefined,
-        voiceCustomizations: localStorage.getItem('voice-configs') ?? undefined,
-        metaPrompt: localStorage.getItem('meta-prompt') ?? undefined,
-        stateConfig: localStorage.getItem('state-config') ?? undefined,
-        selectedState: localStorage.getItem('selected-state') ?? undefined,
-        analysisReports: localStorage.getItem('analysisReports') ?? undefined,
+        currentSession: localStorage.getItem(STORAGE_KEYS.EDITOR_STATE) ?? undefined,
+        calendarEntries: localStorage.getItem(STORAGE_KEYS.CALENDAR_ENTRIES) ?? undefined,
+        dailyPictures: localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES) ?? undefined,
+        voiceCustomizations: localStorage.getItem(STORAGE_KEYS.VOICE_CONFIGS) ?? undefined,
+        metaPrompt: localStorage.getItem(STORAGE_KEYS.META_PROMPT) ?? undefined,
+        stateConfig: localStorage.getItem(STORAGE_KEYS.STATE_CONFIG) ?? undefined,
+        selectedState: localStorage.getItem(STORAGE_KEYS.SELECTED_STATE) ?? undefined,
+        analysisReports: localStorage.getItem(STORAGE_KEYS.ANALYSIS_REPORTS) ?? undefined,
         oldDocument: localStorage.getItem('document') ?? undefined
       };
 
@@ -997,10 +998,10 @@ export default function App() {
       console.log('✅ Migration complete:', result.imported);
 
       // Mark migration as complete
-      localStorage.setItem('migration_completed', 'true');
+      localStorage.setItem(STORAGE_KEYS.MIGRATION_COMPLETED, 'true');
 
       // Clear old localStorage data (keep auth token and migration flag)
-      const keysToKeep = ['auth_token', 'migration_completed'];
+      const keysToKeep: string[] = [STORAGE_KEYS.AUTH_TOKEN, STORAGE_KEYS.MIGRATION_COMPLETED];
       const allKeys = Object.keys(localStorage);
       allKeys.forEach(key => {
         if (!keysToKeep.includes(key)) {
@@ -1021,7 +1022,7 @@ export default function App() {
   }, []);
 
   const handleSkipMigration = useCallback(() => {
-    localStorage.setItem('migration_completed', 'true');
+    localStorage.setItem(STORAGE_KEYS.MIGRATION_COMPLETED, 'true');
     setShowMigrationDialog(false);
   }, []);
 

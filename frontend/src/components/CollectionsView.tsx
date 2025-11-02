@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import type { Commentor } from '../engine/EditorEngine';
 import { findNormalizedPhrase } from '../utils/textNormalize';
 import { useAuth } from '../contexts/AuthContext';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 // @@@ TypeScript interfaces
 interface TimelineDay {
@@ -189,7 +190,7 @@ async function getAllNotesFromSessions(isAuthenticated: boolean): Promise<string
     // @@@ Load from localStorage for guests
     const keys = Object.keys(localStorage);
     for (const key of keys) {
-      if (key === 'ink_memory_state' || key.startsWith('ink_memory_state_')) {
+      if (key === STORAGE_KEYS.EDITOR_STATE || key.startsWith(`${STORAGE_KEYS.EDITOR_STATE}_`)) {
         try {
           const state = JSON.parse(localStorage.getItem(key) || '{}');
           if (state.cells) {
@@ -246,7 +247,7 @@ function TimelinePage({ isVisible }: { isVisible: boolean }) {
         }
       } else {
         // Guest mode: load from localStorage
-        const savedState = localStorage.getItem('ink_memory_state');
+        const savedState = localStorage.getItem(STORAGE_KEYS.EDITOR_STATE);
         if (savedState) {
           try {
             const state = JSON.parse(savedState);
@@ -273,7 +274,7 @@ function TimelinePage({ isVisible }: { isVisible: boolean }) {
         } catch (error) {
           console.error('Failed to load pictures from database:', error);
           // Fallback to localStorage
-          const savedPictures = localStorage.getItem('daily-pictures');
+          const savedPictures = localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES);
           if (savedPictures) {
             try {
               setPictures(JSON.parse(savedPictures));
@@ -284,7 +285,7 @@ function TimelinePage({ isVisible }: { isVisible: boolean }) {
         }
       } else {
         // Guest mode: load from localStorage
-        const savedPictures = localStorage.getItem('daily-pictures');
+        const savedPictures = localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES);
         if (savedPictures) {
           try {
             setPictures(JSON.parse(savedPictures));

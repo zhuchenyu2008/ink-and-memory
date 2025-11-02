@@ -1,8 +1,5 @@
 import type { VoiceConfig, StateConfig } from '../types/voice';
-
-const KEY = 'voice-customizations';
-const META_PROMPT_KEY = 'meta-prompt';
-const STATE_CONFIG_KEY = 'state-config';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 // @@@ Default meta prompt: honest, pragmatic advice over role-playing fluff
 const DEFAULT_META_PROMPT = `Be honest and pragmatic. This is not actual Disco Elysium - prioritize the user's mental well-being and genuine insight over pure role-playing. Offer constructive perspectives that help with real thinking and writing, not just theatrical commentary.`;
@@ -27,23 +24,23 @@ const DEFAULT_STATE_CONFIG: StateConfig = {
 };
 
 export const getVoices = (): Record<string, VoiceConfig> | null =>
-  JSON.parse(localStorage.getItem(KEY) || 'null');
+  JSON.parse(localStorage.getItem(STORAGE_KEYS.VOICE_CONFIGS) || 'null');
 
 export const saveVoices = (voices: Record<string, VoiceConfig>) =>
-  localStorage.setItem(KEY, JSON.stringify(voices));
+  localStorage.setItem(STORAGE_KEYS.VOICE_CONFIGS, JSON.stringify(voices));
 
-export const clearVoices = () => localStorage.removeItem(KEY);
+export const clearVoices = () => localStorage.removeItem(STORAGE_KEYS.VOICE_CONFIGS);
 
 export const getMetaPrompt = (): string =>
-  localStorage.getItem(META_PROMPT_KEY) || DEFAULT_META_PROMPT;
+  localStorage.getItem(STORAGE_KEYS.META_PROMPT) || DEFAULT_META_PROMPT;
 
 export const saveMetaPrompt = (prompt: string) =>
-  localStorage.setItem(META_PROMPT_KEY, prompt);
+  localStorage.setItem(STORAGE_KEYS.META_PROMPT, prompt);
 
 export const getStateConfig = (): StateConfig => {
-  const stored = localStorage.getItem(STATE_CONFIG_KEY);
+  const stored = localStorage.getItem(STORAGE_KEYS.STATE_CONFIG);
   return stored ? JSON.parse(stored) : DEFAULT_STATE_CONFIG;
 };
 
 export const saveStateConfig = (config: StateConfig) =>
-  localStorage.setItem(STATE_CONFIG_KEY, JSON.stringify(config));
+  localStorage.setItem(STORAGE_KEYS.STATE_CONFIG, JSON.stringify(config));

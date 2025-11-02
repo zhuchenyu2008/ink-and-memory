@@ -2,6 +2,8 @@
  * API client for voice analysis backend - FastAPI sync API version
  */
 
+import { STORAGE_KEYS } from '../constants/storageKeys';
+
 // nginx proxies /ink-and-memory/api/* to backend (8765)
 const API_BASE = '/ink-and-memory';
 
@@ -9,7 +11,7 @@ const API_BASE = '/ink-and-memory';
  * Get auth headers for authenticated requests
  */
 function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   if (!token) {
     throw new Error('Not authenticated');
   }

@@ -42,7 +42,7 @@ export interface Commentor {
   id: string;
   phrase: string;       // Highlighted phrase
   comment: string;      // The comment
-  voice: string;        // Voice name
+  voice: string;        // Voice key (for voiceConfigs[key] lookup)
   icon: string;         // Icon identifier
   color: string;        // Color identifier
   appliedAt?: number;   // Timestamp when applied (if applied)
@@ -129,13 +129,16 @@ export class EditorEngine {
       tasks: [],
       weightPath: [],
       overlappedPhrases: [],
-      sessionId
+      sessionId,
+      currentEntryId: sessionId  // @@@ Set currentEntryId synchronously to prevent duplicate UUIDs
     };
   }
 
   // @@@ Update voice configurations from settings
   setVoiceConfigs(configs: Record<string, any>) {
     this.voiceConfigs = configs;
+    console.log('📢 EditorEngine: voiceConfigs updated, enabled voices:',
+      Object.entries(configs).filter(([_, v]) => v.enabled).map(([k]) => k));
   }
 
   // @@@ Update a specific text cell by ID
@@ -371,6 +374,7 @@ export class EditorEngine {
           };
         }
       }
+      console.log('🔍 EditorEngine: Sending to backend, enabled voices:', Object.keys(backendVoices));
 
       // Send only APPLIED commentors to backend
       const appliedCommentors = this.state.commentors.filter(c => c.appliedAt);

@@ -153,13 +153,13 @@ User's current state:
             user_name = v.get("name", key)
             name_to_key[user_name] = key
 
-        # Override icon/color with config values
+        # @@@ Map LLM's name back to key for frontend voiceConfigs[key] lookup
         llm_voice_name = voice.get("voice")
         archetype_key = name_to_key.get(llm_voice_name)
         if archetype_key and archetype_key in voice_archetypes:
             voice["icon"] = voice_archetypes[archetype_key]["icon"]
             voice["color"] = voice_archetypes[archetype_key]["color"]
-            voice["voice"] = llm_voice_name
+            voice["voice"] = archetype_key  # Return key, not name
 
         return {"voices": [voice], "new_voices_added": 1}
     else:

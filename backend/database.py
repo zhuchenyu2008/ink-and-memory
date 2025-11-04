@@ -50,6 +50,10 @@ def init_db():
         migrate_v1(db)
     if current_version < 2:
         migrate_v2(db)
+    if current_version < 3:
+        migrate_v3(db)
+    if current_version < 4:
+        migrate_v4(db)
 
     db.commit()
     db.close()
@@ -166,6 +170,60 @@ def migrate_v2(db):
 
     print("✅ Migration v2 completed")
 
+def migrate_v3(db):
+    """Add thumbnail_base64 field to daily_pictures."""
+    print("📦 Running migration v3: Add thumbnail support for images")
+
+    # Add thumbnail_base64 column to daily_pictures
+    db.execute("""
+    ALTER TABLE daily_pictures ADD COLUMN thumbnail_base64 TEXT
+    """)
+
+    # Record migration
+    db.execute("INSERT INTO schema_version (version) VALUES (3)")
+
+    print("✅ Migration v3 completed")
+
+def migrate_v4(db):
+    """Remove UNIQUE constraint on (user_id, date) to allow multiple pictures per day."""
+    print("📦 Running migration v4: Allow multiple pictures per day")
+
+    # @@@ SQLite doesn't support DROP CONSTRAINT, so we need to recreate the table
+    # Create new table without UNIQUE constraint
+    db.execute("""
+    CREATE TABLE daily_pictures_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      image_base64 TEXT NOT NULL,
+      prompt TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      thumbnail_base64 TEXT,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+    """)
+
+    # Copy all data from old table to new table
+    db.execute("""
+    INSERT INTO daily_pictures_new (id, user_id, date, image_base64, prompt, created_at, thumbnail_base64)
+    SELECT id, user_id, date, image_base64, prompt, created_at, thumbnail_base64
+    FROM daily_pictures
+    """)
+
+    # Drop old table
+    db.execute("DROP TABLE daily_pictures")
+
+    # Rename new table to original name
+    db.execute("ALTER TABLE daily_pictures_new RENAME TO daily_pictures")
+
+    # Recreate index (without UNIQUE constraint)
+    db.execute("CREATE INDEX idx_pictures_user_date ON daily_pictures(user_id, date)")
+
+    # Record migration
+    db.execute("INSERT INTO schema_version (version) VALUES (4)")
+
+    print("✅ Migration v4 completed")
+
 # ========== User Management ==========
 
 def create_user(email: str, password_hash: str, display_name: str = None) -> int:
@@ -219,7 +277,7 @@ def save_session(user_id: int, session_id: str, editor_state: dict, name: str = 
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET
           editor_state_json = excluded.editor_state_json,
-          name = excluded.name,
+          name = COALESCE(excluded.name, name),
           updated_at = CURRENT_TIMESTAMP
         """, (session_id, user_id, name, json.dumps(editor_state)))
         db.commit()
@@ -270,33 +328,64 @@ def delete_session(user_id: int, session_id: str):
 
 # ========== Daily Pictures ==========
 
-def save_daily_picture(user_id: int, date: str, image_base64: str, prompt: str = None):
-    """Save or update daily picture."""
+def save_daily_picture(user_id: int, date: str, image_base64: str, prompt: str = None, thumbnail_base64: str = None):
+    """Save daily picture (replaces any existing picture for this user+date)."""
     db = get_db()
     try:
+        # @@@ Delete old pictures for this user+date combination first
+        # This ensures only ONE picture per day while avoiding UNIQUE constraint timezone issues
         db.execute("""
-        INSERT INTO daily_pictures (user_id, date, image_base64, prompt)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(user_id, date) DO UPDATE SET
-          image_base64 = excluded.image_base64,
-          prompt = excluded.prompt
-        """, (user_id, date, image_base64, prompt))
+        DELETE FROM daily_pictures
+        WHERE user_id = ? AND date = ?
+        """, (user_id, date))
+
+        # Insert the new picture
+        db.execute("""
+        INSERT INTO daily_pictures (user_id, date, image_base64, thumbnail_base64, prompt)
+        VALUES (?, ?, ?, ?, ?)
+        """, (user_id, date, image_base64, thumbnail_base64, prompt))
+
         db.commit()
     finally:
         db.close()
 
 def get_daily_pictures(user_id: int, limit: int = 30):
-    """Get recent daily pictures."""
+    """Get recent daily pictures (returns ONLY thumbnails for fast timeline loading)."""
     db = get_db()
     try:
+        # @@@ Use COALESCE to return thumbnail, fallback to full image only if needed
+        # This prevents loading full images when thumbnails exist
         rows = db.execute("""
-        SELECT date, image_base64, prompt, created_at
+        SELECT date, COALESCE(thumbnail_base64, image_base64) as base64, prompt, created_at
         FROM daily_pictures
         WHERE user_id = ?
         ORDER BY date DESC
         LIMIT ?
         """, (user_id, limit)).fetchall()
-        return [dict(row) for row in rows]
+        return [{
+            'date': row['date'],
+            'base64': row['base64'],
+            'prompt': row['prompt'] or '',
+            'created_at': row['created_at']
+        } for row in rows]
+    finally:
+        db.close()
+
+def get_daily_picture_full(user_id: int, date: str):
+    """Get full resolution image for a specific date (on-demand loading)."""
+    db = get_db()
+    try:
+        row = db.execute("""
+        SELECT image_base64
+        FROM daily_pictures
+        WHERE user_id = ? AND date = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+        """, (user_id, date)).fetchone()
+
+        if row:
+            return row['image_base64']
+        return None
     finally:
         db.close()
 

@@ -55,7 +55,8 @@ export function CommentGroupCard({
   onStar,
   onKill,
   onSendChatMessage,
-  isChatProcessing
+  isChatProcessing,
+  voiceConfigs
 }: {
   comments: Commentor[];
   currentIndex: number;
@@ -67,6 +68,7 @@ export function CommentGroupCard({
   onKill: () => void;
   onSendChatMessage: (message: string) => void;
   isChatProcessing: boolean;
+  voiceConfigs: Record<string, any>;
 }) {
   const [isHovered, setIsHovered] = React.useState(false);
   const [inputValue, setInputValue] = React.useState('');
@@ -344,7 +346,7 @@ export function CommentGroupCard({
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden'
             }}>
-              <strong style={{ fontWeight: 600 }}>{currentComment.voice}:</strong> {currentComment.comment}
+              <strong style={{ fontWeight: 600 }}>{voiceConfigs[currentComment.voice]?.name || currentComment.voice}:</strong> {currentComment.comment}
             </div>
           </div>
         </div>
@@ -373,7 +375,7 @@ export function CommentGroupCard({
                     marginBottom: '2px',
                     fontWeight: 500,
                   }}>
-                    {msg.role === 'assistant' ? currentComment.voice : 'You'}
+                    {msg.role === 'assistant' ? (voiceConfigs[currentComment.voice]?.name || currentComment.voice) : 'You'}
                   </div>
                   <div style={{
                     fontSize: '13px',
@@ -418,7 +420,7 @@ export function CommentGroupCard({
                   }
                 }}
                 onClick={(e) => e.stopPropagation()}
-                placeholder={`Reply to ${currentComment.voice}...`}
+                placeholder={`Reply to ${voiceConfigs[currentComment.voice]?.name || currentComment.voice}...`}
                 disabled={isChatProcessing}
                 style={{
                   flex: 1,

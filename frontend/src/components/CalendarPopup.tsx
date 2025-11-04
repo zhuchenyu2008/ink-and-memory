@@ -32,6 +32,9 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
           const grouped: Record<string, CalendarEntry[]> = {};
 
           for (const session of sessions) {
+            // @@@ Skip unnamed sessions (working drafts not saved yet)
+            if (!session.name) continue;
+
             const fullSession = await getSession(session.id);
 
             // @@@ BUGFIX: Extract date from timestamp (format: "2025-11-02 10:42:17" or "2025-11-02T10:42:17")
@@ -51,7 +54,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
               id: session.id,
               timestamp: new Date(session.created_at || Date.now()).getTime(),
               state: fullSession.editor_state,
-              firstLine: session.name || 'Untitled'
+              firstLine: session.name
             });
           }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { VoiceConfig, StateConfig, UserState } from '../types/voice';
-import { getVoices, saveVoices, clearVoices, getMetaPrompt, saveMetaPrompt, getStateConfig, saveStateConfig } from '../utils/voiceStorage';
+import { saveVoices, clearVoices, getMetaPrompt, saveMetaPrompt, getStateConfig, saveStateConfig } from '../utils/voiceStorage';
 import {
   FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye,
   FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass
@@ -49,40 +49,65 @@ const ICON_LABELS = {
 
 interface Props {
   defaultVoices: Record<string, VoiceConfig>;
+  currentVoices: Record<string, VoiceConfig>;
+  currentMetaPrompt: string;
+  currentStateConfig: StateConfig | null;
   onSave: (data: {
     voices: Record<string, VoiceConfig>;
     metaPrompt: string;
     stateConfig: StateConfig;
-  }) => void;
+  }) => void | Promise<void>;
 }
 
-export default function VoiceSettings({ defaultVoices, onSave }: Props) {
+export default function VoiceSettings({ defaultVoices, currentVoices, currentMetaPrompt, currentStateConfig, onSave }: Props) {
   const [voices, setVoices] = useState<Record<string, VoiceConfig>>({});
   const [metaPrompt, setMetaPrompt] = useState<string>('');
   const [stateConfig, setStateConfig] = useState<StateConfig>(getStateConfig());
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // @@@ Sync with defaultVoices prop (handles async fetch + Use Default button)
+  // @@@ Use currentVoices from database (for authenticated users) or defaultVoices fallback
   useEffect(() => {
-    if (Object.keys(defaultVoices).length > 0) {
-      const stored = getVoices();
-      setVoices(stored || defaultVoices);
+    if (Object.keys(currentVoices).length > 0) {
+      setVoices(currentVoices);
+    } else if (Object.keys(defaultVoices).length > 0) {
+      setVoices(defaultVoices);
     }
-  }, [defaultVoices]);
+  }, [currentVoices, defaultVoices]);
 
-  // @@@ Load meta prompt from localStorage
+  // @@@ Use currentMetaPrompt from database or fallback to localStorage/default
   useEffect(() => {
-    setMetaPrompt(getMetaPrompt());
-  }, []);
+    if (currentMetaPrompt) {
+      setMetaPrompt(currentMetaPrompt);
+    } else {
+      setMetaPrompt(getMetaPrompt());
+    }
+  }, [currentMetaPrompt]);
 
-  const handleSave = () => {
-    saveVoices(voices);
-    saveMetaPrompt(metaPrompt);
-    saveStateConfig(stateConfig);
-    onSave({ voices, metaPrompt, stateConfig });
-    setSaveStatus('saved');
-    setTimeout(() => setSaveStatus('idle'), 2000);
+  // @@@ Use currentStateConfig from database or fallback to localStorage/default
+  useEffect(() => {
+    if (currentStateConfig) {
+      setStateConfig(currentStateConfig);
+    } else {
+      setStateConfig(getStateConfig());
+    }
+  }, [currentStateConfig]);
+
+  const handleSave = async () => {
+    console.log('VoiceSettings: handleSave called');
+    try {
+      saveVoices(voices);
+      saveMetaPrompt(metaPrompt);
+      saveStateConfig(stateConfig);
+      console.log('VoiceSettings: localStorage saved, calling onSave callback');
+      await onSave({ voices, metaPrompt, stateConfig });
+      console.log('VoiceSettings: onSave callback completed');
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      console.error('VoiceSettings: Save failed:', error);
+      alert('Failed to save settings. Check console for details.');
+    }
   };
 
   const handleDefault = () => {

@@ -408,13 +408,56 @@ Return ONLY the image description, no other text."""
                         # Extract base64 data (without the data URI prefix)
                         base64_data = image_data.split(',', 1)[1]
 
-                        print(f"✅ Image generated successfully")
-                        print(f"   Size: {len(base64_data)} chars")
+                        # @@@ Convert to JPEG and create thumbnail
+                        try:
+                            import base64
+                            from io import BytesIO
+                            from PIL import Image
 
-                        return {
-                            "image_base64": base64_data,
-                            "prompt": image_description  # Return the creative description
-                        }
+                            # Decode PNG
+                            img_bytes = base64.b64decode(base64_data)
+                            img = Image.open(BytesIO(img_bytes))
+
+                            # Convert to RGB (JPEG doesn't support transparency)
+                            if img.mode in ('RGBA', 'LA', 'P'):
+                                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                                if img.mode == 'RGBA':
+                                    rgb_img.paste(img, mask=img.split()[-1])
+                                else:
+                                    rgb_img.paste(img)
+                                img = rgb_img
+
+                            # Full JPEG (quality 85)
+                            full_output = BytesIO()
+                            img.save(full_output, format='JPEG', quality=85, optimize=True)
+                            full_jpeg = base64.b64encode(full_output.getvalue()).decode('utf-8')
+
+                            # Thumbnail JPEG (400px width, quality 60)
+                            thumb_width = 400
+                            thumb_height = int(img.height * (thumb_width / img.width))
+                            thumb_img = img.resize((thumb_width, thumb_height), Image.Resampling.LANCZOS)
+
+                            thumb_output = BytesIO()
+                            thumb_img.save(thumb_output, format='JPEG', quality=60, optimize=True)
+                            thumb_jpeg = base64.b64encode(thumb_output.getvalue()).decode('utf-8')
+
+                            print(f"✅ Image generated successfully")
+                            print(f"   Original PNG: {len(base64_data)} chars")
+                            print(f"   Full JPEG: {len(full_jpeg)} chars ({100 * len(full_jpeg) / len(base64_data):.1f}%)")
+                            print(f"   Thumbnail: {len(thumb_jpeg)} chars ({100 * len(thumb_jpeg) / len(base64_data):.1f}%)")
+
+                            return {
+                                "image_base64": full_jpeg,
+                                "thumbnail_base64": thumb_jpeg,
+                                "prompt": image_description
+                            }
+                        except Exception as e:
+                            print(f"⚠️ JPEG conversion failed: {e}, using original PNG")
+                            return {
+                                "image_base64": base64_data,
+                                "thumbnail_base64": base64_data,  # Fallback to full image
+                                "prompt": image_description
+                            }
 
             if attempt < config.IMAGE_RETRY_MAX_ATTEMPTS:
                 print(f"⚠️ No image in response, retrying...")
@@ -837,7 +880,7 @@ def get_pictures(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Get recent daily pictures for current user.
+    Get recent daily pictures for current user (thumbnails only for fast loading).
 
     Query params:
     - limit: Max number of pictures to return (default 30)
@@ -845,6 +888,25 @@ def get_pictures(
     user_id = current_user['user_id']
     pictures = database.get_daily_pictures(user_id, limit)
     return {"pictures": pictures}
+
+@app.get("/api/pictures/{date}/full")
+def get_picture_full(
+    date: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get full resolution image for a specific date (on-demand loading).
+
+    Path params:
+    - date: Date in YYYY-MM-DD format
+    """
+    user_id = current_user['user_id']
+    full_image = database.get_daily_picture_full(user_id, date)
+
+    if not full_image:
+        raise HTTPException(status_code=404, detail="Picture not found for this date")
+
+    return {"image_base64": full_image}
 
 @app.post("/api/pictures")
 def save_picture(
@@ -864,12 +926,13 @@ def save_picture(
     user_id = current_user['user_id']
     date = request.get('date')
     image_base64 = request.get('image_base64')
+    thumbnail_base64 = request.get('thumbnail_base64')
     prompt = request.get('prompt', '')
 
     if not date or not image_base64:
         raise HTTPException(status_code=400, detail="date and image_base64 required")
 
-    database.save_daily_picture(user_id, date, image_base64, prompt)
+    database.save_daily_picture(user_id, date, image_base64, prompt, thumbnail_base64)
     return {"success": True}
 
 # ========== Preferences Endpoints ==========
@@ -1003,7 +1066,7 @@ async def generate_image_api(request_data: dict):
     """
     @@@ Generate artistic image from notes (sync API).
 
-    This may take longer (60s timeout) due to image generation.
+    This may take longer (120s timeout) due to image generation.
     """
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -1011,9 +1074,9 @@ async def generate_image_api(request_data: dict):
             json={
                 "session_id": "generate_daily_picture",
                 "params": request_data,
-                "timeout": 60.0  # Image generation takes longer
+                "timeout": 120.0  # Image generation takes ~90s without proxy
             },
-            timeout=65.0
+            timeout=125.0
         )
         return response.json()
 

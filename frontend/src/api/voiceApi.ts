@@ -47,6 +47,7 @@ interface SyncResponse {
     traits?: any[];  // For traits analysis
     patterns?: any[];  // For patterns analysis
     image_base64?: string;  // For image generation
+    thumbnail_base64?: string;  // Thumbnail for image generation
     prompt?: string;  // Image generation prompt
   };
   error?: string;
@@ -179,7 +180,7 @@ export async function analyzePatterns(allNotes: string): Promise<any[]> {
 /**
  * Generate a daily picture based on user's notes (sync API - no polling!)
  */
-export async function generateDailyPicture(allNotes: string): Promise<{ image_base64: string; prompt: string }> {
+export async function generateDailyPicture(allNotes: string): Promise<{ image_base64: string; thumbnail_base64?: string; prompt: string }> {
   const response = await fetch(`${API_BASE}/api/generate-image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -195,6 +196,7 @@ export async function generateDailyPicture(allNotes: string): Promise<{ image_ba
   if (data.result?.image_base64) {
     return {
       image_base64: data.result.image_base64,
+      thumbnail_base64: data.result.thumbnail_base64,
       prompt: data.result.prompt || 'Generated from your notes'
     };
   }
@@ -314,13 +316,14 @@ export async function deleteSession(sessionId: string): Promise<void> {
 /**
  * Save daily picture
  */
-export async function saveDailyPicture(date: string, imageBase64: string, prompt: string): Promise<void> {
+export async function saveDailyPicture(date: string, imageBase64: string, prompt: string, thumbnailBase64?: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/pictures`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
       date,
       image_base64: imageBase64,
+      thumbnail_base64: thumbnailBase64,
       prompt
     })
   });
@@ -332,7 +335,7 @@ export async function saveDailyPicture(date: string, imageBase64: string, prompt
 }
 
 /**
- * Get daily pictures
+ * Get daily pictures (thumbnails only for fast timeline loading)
  */
 export async function getDailyPictures(limit: number = 30): Promise<any[]> {
   const response = await fetch(`${API_BASE}/api/pictures?limit=${limit}`, {
@@ -346,6 +349,23 @@ export async function getDailyPictures(limit: number = 30): Promise<any[]> {
 
   const data = await response.json();
   return data.pictures;
+}
+
+/**
+ * Get full resolution image for a specific date (on-demand loading)
+ */
+export async function getDailyPictureFull(date: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/api/pictures/${date}/full`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get full picture failed');
+  }
+
+  const data = await response.json();
+  return data.image_base64;
 }
 
 /**

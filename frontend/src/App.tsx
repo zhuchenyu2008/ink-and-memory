@@ -268,6 +268,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'about'>('writing');
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
+  const [metaPrompt, setMetaPrompt] = useState<string>('');
+  const [loadedStateConfig, setLoadedStateConfig] = useState<StateConfig | null>(null);
   const [defaultVoiceConfigs, setDefaultVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
 
   const engineRef = useRef<EditorEngine | null>(null);
@@ -357,6 +359,8 @@ export default function App() {
   // @@@ Update engine when voice configs change
   useEffect(() => {
     if (engineRef.current && Object.keys(voiceConfigs).length > 0) {
+      console.log('📢 App: voiceConfigs changed, updating engine. Enabled:',
+        Object.entries(voiceConfigs).filter(([_, v]) => v.enabled).map(([k]) => k));
       engineRef.current.setVoiceConfigs(voiceConfigs);
     }
   }, [voiceConfigs]);
@@ -444,6 +448,7 @@ export default function App() {
 
           // Load the most recent session or current session
           let sessionToLoad = null;
+          let loadedSessionId: string | undefined = undefined;
           const currentSessionId = 'current-session';
           const currentSession = sessions.find(s => s.id === currentSessionId);
 
@@ -451,6 +456,7 @@ export default function App() {
             // Load current session
             const fullSession = await getSession(currentSessionId);
             sessionToLoad = fullSession.editor_state;
+            loadedSessionId = currentSessionId;
           } else if (sessions.length > 0) {
             // Load most recent session
             const mostRecent = sessions.sort((a, b) =>
@@ -458,10 +464,13 @@ export default function App() {
             )[0];
             const fullSession = await getSession(mostRecent.id);
             sessionToLoad = fullSession.editor_state;
+            loadedSessionId = mostRecent.id;
           }
 
-          if (sessionToLoad) {
+          if (sessionToLoad && loadedSessionId) {
             engine.loadState(sessionToLoad);
+            // @@@ CRITICAL: Set currentEntryId to the loaded session ID
+            engine.setCurrentEntryId(loadedSessionId);
             setState(engine.getState());
 
             // Initialize localTexts from loaded state
@@ -479,6 +488,12 @@ export default function App() {
             const prefs = await getPreferences();
             if (prefs.voice_configs) {
               setVoiceConfigs(prefs.voice_configs);
+            }
+            if (prefs.meta_prompt) {
+              setMetaPrompt(prefs.meta_prompt);
+            }
+            if (prefs.state_config) {
+              setLoadedStateConfig(prefs.state_config);
             }
             if (prefs.selected_state !== undefined && prefs.selected_state !== null) {
               setSelectedState(prefs.selected_state);
@@ -542,20 +557,19 @@ export default function App() {
 
   // @@@ Auto-save to database for authenticated users
   useEffect(() => {
-    if (!isAuthenticated || !state || !engineRef.current) return;
+    if (!isAuthenticated || !state) return;
+
+    // @@@ currentEntryId is always defined after engine initialization
+    if (!state.currentEntryId) {
+      console.error('BUG: currentEntryId should always be defined after engine init');
+      return;
+    }
 
     const autoSaveTimer = setTimeout(async () => {
       try {
-        // Use currentEntryId if exists, otherwise create new UUID
-        let sessionId = state.currentEntryId;
-        if (!sessionId) {
-          sessionId = crypto.randomUUID();
-          engineRef.current?.setCurrentEntryId(sessionId);
-        }
-
         const { saveSession } = await import('./api/voiceApi');
-        // Auto-save without name (unsaved draft)
-        await saveSession(sessionId, state);
+        // Auto-save without name (preserves existing name if any)
+        await saveSession(state.currentEntryId!, state);
         console.log('Auto-saved to database');
       } catch (error) {
         console.error('Auto-save failed:', error);
@@ -883,7 +897,7 @@ export default function App() {
       weightPath: [],
       overlappedPhrases: [],
       sessionId: newSessionId,
-      currentEntryId: undefined
+      currentEntryId: newSessionId  // @@@ Set currentEntryId to maintain invariant I5
     };
 
     // @@@ Load empty state directly into engine (immediate UI update)
@@ -895,7 +909,7 @@ export default function App() {
       // @@@ Save to database in background
       try {
         const { saveSession } = await import('./api/voiceApi');
-        await saveSession(emptyState.sessionId, emptyState);
+        await saveSession(emptyState.currentEntryId!, emptyState);
       } catch (error) {
         console.error('Failed to save new session:', error);
       }
@@ -1013,20 +1027,26 @@ export default function App() {
     metaPrompt: string;
     stateConfig: StateConfig;
   }) => {
+    console.log('App: handleVoiceConfigsSave called, isAuthenticated:', isAuthenticated);
     setVoiceConfigs(data.voices);
 
     // @@@ Save to database if authenticated
     if (isAuthenticated) {
       try {
+        console.log('App: Saving preferences to database...');
         const { savePreferences } = await import('./api/voiceApi');
         await savePreferences({
           voice_configs: data.voices,
           meta_prompt: data.metaPrompt,
           state_config: data.stateConfig
         });
+        console.log('App: Preferences saved to database successfully');
       } catch (error) {
-        console.error('Failed to save preferences to database:', error);
+        console.error('App: Failed to save preferences to database:', error);
+        throw error; // Propagate error to show alert
       }
+    } else {
+      console.log('App: Guest mode, skipping database save');
     }
   }, [isAuthenticated]);
 
@@ -1887,6 +1907,7 @@ export default function App() {
                       onKill={() => handleCommentKill(displayedComment.id)}
                       onSendChatMessage={(msg) => handleCommentChatSend(displayedComment.id, msg)}
                       isChatProcessing={commentChatProcessing.has(displayedComment.id)}
+                      voiceConfigs={voiceConfigs}
                     />
                     );
                   });
@@ -1982,6 +2003,9 @@ export default function App() {
         }}>
           <VoiceSettings
             defaultVoices={defaultVoiceConfigs}
+            currentVoices={voiceConfigs}
+            currentMetaPrompt={metaPrompt}
+            currentStateConfig={loadedStateConfig}
             onSave={handleVoiceConfigsSave}
           />
         </div>
@@ -1997,7 +2021,7 @@ export default function App() {
         display: currentView === 'timeline' ? 'flex' : 'none',
         overflow: 'hidden'
       }}>
-        <CollectionsView isVisible={currentView === 'timeline'} />
+        <CollectionsView isVisible={currentView === 'timeline'} voiceConfigs={voiceConfigs} />
       </div>
       {currentView === 'analysis' && (
         <div style={{

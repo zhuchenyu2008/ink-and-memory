@@ -101,6 +101,9 @@ export default function AnalysisView() {
           // Group sessions by date
           const grouped: Record<string, any[]> = {};
           for (const session of sessions) {
+            // @@@ Skip unnamed sessions (working drafts not saved yet)
+            if (!session.name) continue;
+
             const fullSession = await getSession(session.id);
 
             // @@@ BUGFIX: Extract date from timestamp (format: "2025-11-02 10:42:17" or "2025-11-02T10:42:17")
@@ -120,7 +123,7 @@ export default function AnalysisView() {
               id: session.id,
               timestamp: new Date(session.created_at || Date.now()).getTime(),
               state: fullSession.editor_state,
-              firstLine: session.name || 'Untitled'
+              firstLine: session.name
             });
           }
           calendarData = grouped;

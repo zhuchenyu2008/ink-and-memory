@@ -129,11 +129,18 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
           const grouped: Record<string, CalendarEntry[]> = {};
 
           for (const session of sessions) {
+            // @@@ Skip unnamed sessions (same check as initial load)
+            if (!session.name) continue;
+
             const fullSession = await getSession(session.id);
-            let dateKey = session.created_at?.split('T')[0] || getTodayKey();
+            // @@@ Extract date from created_at timestamp (format: "2025-11-02 10:42:17")
+            let dateKey = session.created_at?.substring(0, 10) || getTodayKey();
+
+            // Legacy: if name starts with YYYY-MM-DD format, use that
             if (session.name && /^\d{4}-\d{2}-\d{2}/.test(session.name)) {
               dateKey = session.name.split(' - ')[0];
             }
+
             if (!grouped[dateKey]) {
               grouped[dateKey] = [];
             }
@@ -141,7 +148,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
               id: session.id,
               timestamp: new Date(session.created_at || Date.now()).getTime(),
               state: fullSession.editor_state,
-              firstLine: session.name || 'Untitled'
+              firstLine: session.name
             });
           }
           setCalendarData(grouped);

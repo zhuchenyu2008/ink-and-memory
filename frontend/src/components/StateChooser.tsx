@@ -35,7 +35,7 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
   };
 
   // @@@ Mini icon generator for collapsed state (24px version)
-  const getMiniStateIcon = (stateId: string): JSX.Element => {
+  const getMiniStateIcon = (stateId: string) => {
     const iconProps = { width: 24, height: 24, viewBox: "0 0 100 100" };
 
     switch(stateId.toLowerCase()) {
@@ -121,7 +121,7 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
           >
             {/* Shrunken state icon */}
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-              {getMiniStateIcon(selectedState)}
+              {selectedState && getMiniStateIcon(selectedState)}
             </div>
 
             <span style={{

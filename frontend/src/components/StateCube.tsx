@@ -17,12 +17,17 @@ interface CubeFace {
 
 // @@@ Quaternion class for smooth 3D rotation
 class Quaternion {
-  constructor(
-    public w: number,
-    public x: number,
-    public y: number,
-    public z: number
-  ) {}
+  w: number;
+  x: number;
+  y: number;
+  z: number;
+
+  constructor(w: number, x: number, y: number, z: number) {
+    this.w = w;
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
 
   static identity(): Quaternion {
     return new Quaternion(1, 0, 0, 0);
@@ -392,7 +397,7 @@ export function StateCube({ onStateSelect, stateConfig }: StateCubeProps) {
   }, []);
 
   // @@@ Simple SVG icon generator for each state
-  const getStateIcon = (stateId: string): JSX.Element => {
+  const getStateIcon = (stateId: string) => {
     const iconProps = { width: 40, height: 40, viewBox: "0 0 100 100", style: { margin: '0 auto' } };
 
     switch(stateId.toLowerCase()) {
@@ -455,7 +460,7 @@ export function StateCube({ onStateSelect, stateConfig }: StateCubeProps) {
           gap: '8px'
         }}
       >
-        {face.states.map((state, idx) => {
+        {face.states.map((state) => {
           const isClicked = clickedState === state.id;
           return (
             <div

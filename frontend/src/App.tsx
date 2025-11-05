@@ -1080,7 +1080,28 @@ export default function App() {
       localStorage.setItem(STORAGE_KEYS.SELECTED_STATE, stateId);
       localStorage.setItem('selected-state-date', today);
     }
-  }, [isAuthenticated]);
+
+    // @@@ Add greeting comment for first daily state selection
+    if (engineRef.current && stateConfig.states[stateId]) {
+      const greetingText = stateConfig.states[stateId].greeting;
+      const firstVoice = Object.keys(voiceConfigs)[0]; // Use first voice for greeting
+
+      if (greetingText && firstVoice) {
+        const greetingComment: Commentor = {
+          id: `greeting-${Date.now()}`,
+          phrase: '', // Empty phrase marks this as a greeting comment
+          voice: voiceConfigs[firstVoice].name,
+          comment: greetingText,
+          appliedAt: Date.now(),
+          icon: voiceConfigs[firstVoice].icon,
+          color: voiceConfigs[firstVoice].color
+        };
+
+        engineRef.current.addCommentToState(greetingComment);
+        setState(engineRef.current.getState());
+      }
+    }
+  }, [isAuthenticated, stateConfig, voiceConfigs, engineRef]);
 
   const handleVoiceConfigsSave = useCallback(async (data: {
     voices: Record<string, VoiceConfig>;
@@ -1835,6 +1856,48 @@ export default function App() {
                       onChoose={handleStateChoose}
                     />
                   </div>
+
+                  {/* @@@ Greeting comments (phrase === '') - rendered at top */}
+                  {state.commentors
+                    .filter(c => c.appliedAt && c.phrase === '')
+                    .map((greetingComment) => (
+                      <div
+                        key={greetingComment.id}
+                        style={{
+                          marginBottom: '20px',
+                          padding: '12px 16px',
+                          background: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          borderRadius: '8px',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                          fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif"
+                        }}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px'
+                        }}>
+                          <span style={{ fontSize: '18px' }}>
+                            {greetingComment.icon}
+                          </span>
+                          <div style={{ flex: 1 }}>
+                            <strong style={{
+                              color: greetingComment.color === 'blue' ? '#4A90E2' :
+                                     greetingComment.color === 'pink' ? '#E91E63' :
+                                     greetingComment.color === 'yellow' ? '#FFC107' :
+                                     greetingComment.color === 'green' ? '#4CAF50' :
+                                     greetingComment.color === 'purple' ? '#9C27B0' : '#333'
+                            }}>
+                              {greetingComment.voice}:
+                            </strong>{' '}
+                            <span style={{ color: '#333' }}>
+                              {greetingComment.comment}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
 
                   {/* Render cells sequentially with per-cell highlights */}
                   {state.cells.map((cell, idx) => {

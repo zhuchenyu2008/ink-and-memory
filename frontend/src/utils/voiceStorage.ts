@@ -10,15 +10,18 @@ const DEFAULT_STATE_CONFIG: StateConfig = {
   states: {
     happy: {
       name: "Happy",
-      prompt: "The user is feeling positive and energized. Encourage creative exploration and bold ideas."
+      prompt: "The user is feeling positive and energized. Encourage creative exploration and bold ideas.",
+      greeting: "Great to see you in high spirits! Let's capture this energy."
     },
     ok: {
       name: "OK",
-      prompt: "The user is feeling neutral. Provide balanced, steady guidance."
+      prompt: "The user is feeling neutral. Provide balanced, steady guidance.",
+      greeting: "Steady and ready. Let's see what today brings."
     },
     unhappy: {
       name: "Unhappy",
-      prompt: "The user is feeling down. Be gentle, supportive, and focus on small wins."
+      prompt: "The user is feeling down. Be gentle, supportive, and focus on small wins.",
+      greeting: "I'm here with you. Sometimes writing helps make sense of things."
     }
   }
 };

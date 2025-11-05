@@ -499,10 +499,19 @@ export default function App() {
           setState(engine.getState());
         }
 
-        // @@@ Load selectedState from localStorage for guest mode
+        // @@@ Load selectedState with daily reset check
         const savedState = localStorage.getItem(STORAGE_KEYS.SELECTED_STATE);
-        if (savedState) {
+        const savedDate = localStorage.getItem('selected-state-date');
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+        // Reset state if it's a new day
+        if (savedState && savedDate === today) {
           setSelectedState(savedState);
+        } else {
+          // New day - clear the selection to show cube again
+          localStorage.removeItem(STORAGE_KEYS.SELECTED_STATE);
+          localStorage.removeItem('selected-state-date');
+          setSelectedState(null);
         }
       }
     };
@@ -1042,17 +1051,21 @@ export default function App() {
 
   const handleStateChoose = useCallback(async (stateId: string) => {
     setSelectedState(stateId);
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
     // @@@ Save to database if authenticated, localStorage if guest
     if (isAuthenticated) {
       try {
         const { savePreferences } = await import('./api/voiceApi');
         await savePreferences({ selected_state: stateId });
+        // Also save date to localStorage for daily reset check
+        localStorage.setItem('selected-state-date', today);
       } catch (error) {
         console.error('Failed to save state to database:', error);
       }
     } else {
       localStorage.setItem(STORAGE_KEYS.SELECTED_STATE, stateId);
+      localStorage.setItem('selected-state-date', today);
     }
   }, [isAuthenticated]);
 

@@ -396,6 +396,44 @@ export function StateCube({ onStateSelect, stateConfig }: StateCubeProps) {
     };
   }, []);
 
+  // @@@ Idle animation: slowly rotate cube after 3 seconds of inactivity
+  useEffect(() => {
+    if (isDragging || isSnapping) return;
+
+    let idleTimeoutId: number;
+    let idleAnimationId: number;
+    const baseRotation = rotation; // Capture current rotation when idle starts
+
+    // Wait 3 seconds before starting idle animation
+    idleTimeoutId = window.setTimeout(() => {
+      const startTime = performance.now();
+      const idleRotationSpeed = 0.0002; // Very slow rotation
+
+      const animateIdle = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const angle = elapsed * idleRotationSpeed;
+
+        // Rotate slowly around Y axis (left-right)
+        const idleRotation = Quaternion.fromAxisAngle({ x: 0, y: 1, z: 0 }, angle);
+        const newRotation = idleRotation.multiply(baseRotation);
+
+        setRotation(newRotation);
+        idleAnimationId = requestAnimationFrame(animateIdle);
+      };
+
+      idleAnimationId = requestAnimationFrame(animateIdle);
+    }, 3000);
+
+    return () => {
+      if (idleTimeoutId) {
+        clearTimeout(idleTimeoutId);
+      }
+      if (idleAnimationId) {
+        cancelAnimationFrame(idleAnimationId);
+      }
+    };
+  }, [isDragging, isSnapping]);
+
   // @@@ Simple SVG icon generator for each state
   const getStateIcon = (stateId: string) => {
     const iconProps = { width: 40, height: 40, viewBox: "0 0 100 100", style: { margin: '0 auto' } };

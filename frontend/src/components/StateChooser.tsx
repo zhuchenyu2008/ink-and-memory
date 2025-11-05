@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StateCube } from './StateCube';
 import type { StateConfig } from '../types/voice';
 
@@ -10,11 +10,16 @@ interface Props {
 
 export default function StateChooser({ stateConfig, selectedState, onChoose }: Props) {
   const [isExpanded, setIsExpanded] = useState(!selectedState);
+  const [shouldAnimate, setShouldAnimate] = useState(false);
+  const indicatorRef = useRef<HTMLDivElement>(null);
 
   // @@@ Collapse when selectedState is set externally
   useEffect(() => {
     if (selectedState) {
       setIsExpanded(false);
+      // Trigger highlight animation
+      setShouldAnimate(true);
+      setTimeout(() => setShouldAnimate(false), 600);
     }
   }, [selectedState]);
 
@@ -76,49 +81,71 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
   };
 
   return (
-    <div style={{
-      padding: '0',
-      fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif"
-    }}>
-      {/* Compact view when state is selected */}
-      {selectedStateData && !isExpanded ? (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          cursor: 'pointer'
-        }}
-        onClick={() => setIsExpanded(true)}
-        >
-          {/* Date */}
-          <div style={{
-            fontSize: 13,
-            color: '#666',
-            fontWeight: 400
-          }}>
-            {dateString}
-          </div>
+    <>
+      {/* @@@ Keyframe animation for highlight effect */}
+      <style>{`
+        @keyframes stateHighlight {
+          0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(100, 150, 255, 0.4);
+          }
+          50% {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 8px rgba(100, 150, 255, 0);
+          }
+          100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(100, 150, 255, 0);
+          }
+        }
+      `}</style>
 
-          {/* Mini icon + state name */}
+      <div style={{
+        padding: '0',
+        fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif"
+      }}>
+        {/* Compact view when state is selected */}
+        {selectedStateData && !isExpanded ? (
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
-            padding: '4px 12px',
-            background: 'rgba(255,255,255,0.6)',
-            borderRadius: 6,
-            border: '1px solid rgba(0,0,0,0.08)',
-            transition: 'all 0.2s'
+            gap: 16,
+            cursor: 'pointer'
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.9)';
-            e.currentTarget.style.borderColor = 'rgba(0,0,0,0.15)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.6)';
-            e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)';
-          }}
+          onClick={() => setIsExpanded(true)}
           >
+            {/* Date */}
+            <div style={{
+              fontSize: 13,
+              color: '#666',
+              fontWeight: 400
+            }}>
+              {dateString}
+            </div>
+
+            {/* Mini icon + state name */}
+            <div
+              ref={indicatorRef}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '4px 12px',
+                background: 'rgba(255,255,255,0.6)',
+                borderRadius: 6,
+                border: '1px solid rgba(0,0,0,0.08)',
+                transition: 'all 0.2s',
+                animation: shouldAnimate ? 'stateHighlight 0.6s ease-out' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.9)';
+                e.currentTarget.style.borderColor = 'rgba(0,0,0,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.6)';
+                e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)';
+              }}
+            >
             {/* Shrunken state icon */}
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               {selectedState && getMiniStateIcon(selectedState)}
@@ -182,6 +209,7 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
           </div>
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }

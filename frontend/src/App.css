@@ -226,6 +226,22 @@
   background: url(https://s2.svgbox.net/pen-brushes.svg?ic=brush-5&color=ddb3ff);
 }
 
+/* @@@ Notebook ruled lines background */
+.notebook-lines {
+  background-image:
+    /* Vertical margin line (left) */
+    linear-gradient(to right, transparent 0, transparent 39px, rgba(255, 100, 100, 0.15) 40px, rgba(255, 100, 100, 0.15) 41px, transparent 41px),
+    /* Horizontal ruled lines */
+    repeating-linear-gradient(
+      transparent,
+      transparent 31.4px,
+      rgba(170, 170, 180, 0.2) 31.4px,
+      rgba(170, 170, 180, 0.2) 32.4px
+    );
+  background-size: 100% 100%;
+  background-position: 0 0;
+}
+
 /* Scrollbar styling for simplified version */
 .writing-textarea::-webkit-scrollbar,
 .comments-panel::-webkit-scrollbar {

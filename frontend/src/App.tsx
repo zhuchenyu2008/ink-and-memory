@@ -20,6 +20,7 @@ import AboutView from './components/AboutView';
 import AgentDropdown from './components/AgentDropdown';
 import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
+import { StateCube } from './components/StateCube';
 import type { VoiceConfig, StateConfig } from './types/voice';
 import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
 import { getDefaultVoices, chatWithVoice, importLocalData } from './api/voiceApi';
@@ -1715,12 +1716,13 @@ export default function App() {
               width: '100%',
               margin: '0 auto'
             }}>
-              <div style={{
+              <div className="notebook-lines" style={{
                 flex: 1,
                 position: 'relative',
                 overflow: 'auto',
                 padding: '20px',
-                paddingBottom: '80px'  // Extra space for smooth scrolling to bottom
+                paddingBottom: '80px',  // Extra space for smooth scrolling to bottom
+                backgroundColor: '#fffef9'  // @@@ Cream paper background for notebook lines
               }}>
                 <div style={{
                   position: 'relative',
@@ -2153,6 +2155,9 @@ export default function App() {
           onClose={() => setShowCalendarPopup(false)}
         />
       )}
+
+      {/* @@@ TEMPORARY: 3D State Cube for testing */}
+      <StateCube />
     </>
   );
 }

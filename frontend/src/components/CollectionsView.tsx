@@ -168,6 +168,34 @@ function getPlaceholderText(daysOffset: number): string {
   return placeholders[daysOffset.toString()] || (daysOffset < 0 ? 'what was has passed' : 'yet to be written');
 }
 
+// @@@ Extract and truncate beginning of text for timeline preview
+function getTextPreview(text: string, maxLength: number = 60): string {
+  if (!text || text.trim().length === 0) return '';
+
+  // Remove extra whitespace
+  const cleaned = text.trim().replace(/\s+/g, ' ');
+
+  // Find first sentence ending
+  const sentenceEndings = /[.!?。！？]/;
+  const match = cleaned.match(sentenceEndings);
+
+  let preview = '';
+  if (match && match.index !== undefined && match.index < maxLength * 1.5) {
+    // Use first sentence if it's not too long
+    preview = cleaned.substring(0, match.index + 1);
+  } else {
+    // Otherwise use first N characters
+    preview = cleaned.substring(0, maxLength);
+  }
+
+  // Truncate if still too long
+  if (preview.length > maxLength) {
+    preview = preview.substring(0, maxLength).trim() + '...';
+  }
+
+  return preview;
+}
+
 // @@@ Get all notes from all sessions (localStorage for guest, database for authenticated)
 async function getAllNotesFromSessions(isAuthenticated: boolean): Promise<string> {
   const allText: string[] = [];
@@ -228,6 +256,7 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
   const { isAuthenticated } = useAuth();
   const [starredComments, setStarredComments] = useState<Commentor[]>([]);
   const [allCommentsByDate, setAllCommentsByDate] = useState<Map<string, Commentor[]>>(new Map());
+  const [textByDate, setTextByDate] = useState<Map<string, string>>(new Map());
   const [pictures, setPictures] = useState<Array<{ date: string; base64: string; full_base64?: string; prompt: string }>>([]);
   const [generatingForDate, setGeneratingForDate] = useState<string | null>(null);
   const [viewingImage, setViewingImage] = useState<{ base64: string; full_base64?: string; prompt: string; date: string } | null>(null);
@@ -244,6 +273,7 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
           const sessions = await listSessions();
           const allStarred: Commentor[] = [];
           const commentsByDate = new Map<string, Commentor[]>();
+          const textByDateMap = new Map<string, string>();
 
           for (const session of sessions) {
             try {
@@ -264,6 +294,22 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                 }
                 commentsByDate.get(date)!.push(comment);
               });
+
+              // @@@ Extract text from session and group by creation date
+              if (fullSession.editor_state?.createdAt && fullSession.editor_state?.cells) {
+                const sessionDate = fullSession.editor_state.createdAt; // Already in YYYY-MM-DD format
+                const text = fullSession.editor_state.cells
+                  .filter((c: any) => c.type === 'text')
+                  .map((c: any) => c.content)
+                  .join(' ')
+                  .trim();
+
+                if (text) {
+                  // Append text for this date (sessions can have multiple entries per day)
+                  const existingText = textByDateMap.get(sessionDate) || '';
+                  textByDateMap.set(sessionDate, existingText ? `${existingText} ${text}` : text);
+                }
+              }
             } catch (err) {
               console.error(`Failed to load session ${session.id}:`, err);
             }
@@ -271,6 +317,7 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
 
           setStarredComments(allStarred);
           setAllCommentsByDate(commentsByDate);
+          setTextByDate(textByDateMap);
         } catch (error) {
           console.error('Failed to load comments from database:', error);
         }
@@ -699,9 +746,11 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                   <div style={{
                     fontSize: '13px',
                     color: '#888',
-                    fontStyle: 'italic'
+                    fontStyle: textByDate.get(day.date) ? 'normal' : 'italic'
                   }}>
                     {isGenerating ? 'Generating...' :
+                     textByDate.get(day.date) ?
+                       getTextPreview(textByDate.get(day.date)!) :
                      dayData?.comments?.length ?
                        `${dayData.comments.length} ${dayData.comments.length === 1 ? 'entry' : 'entries'}` :
                        getPlaceholderText(day.daysOffset)}

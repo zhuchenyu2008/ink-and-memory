@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaStar, FaTrash, FaChevronLeft, FaChevronRight, FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye, FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass } from 'react-icons/fa';
+import { FaStar, FaTrash, FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye, FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass } from 'react-icons/fa';
 import type { Commentor } from '../engine/EditorEngine';
 
 const iconMap = {
@@ -140,19 +140,46 @@ export function CommentGroupCard({
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
+            {/* @@@ Tab navigation on left side */}
             <div style={{
-              fontSize: '10px',
-              color: colors.text,
-              opacity: 0.6,
-              fontWeight: 600
+              display: 'flex',
+              gap: '4px',
+              alignItems: 'center',
             }}>
-              {comments.length > 1 && (
-                <span>
-                  {safeIndex + 1}/{comments.length}
-                </span>
+              {comments.length > 1 ? (
+                comments.map((_, idx) => (
+                  <React.Fragment key={idx}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigate(idx);
+                      }}
+                      style={{
+                        background: idx === safeIndex ? colors.text : 'transparent',
+                        color: idx === safeIndex ? '#fff' : colors.text,
+                        border: 'none',
+                        borderRadius: '3px',
+                        padding: '2px 6px',
+                        cursor: 'pointer',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        opacity: idx === safeIndex ? 1 : 0.5,
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {idx + 1}
+                    </button>
+                    {idx < comments.length - 1 && (
+                      <span style={{ color: colors.text, opacity: 0.3, fontSize: '10px' }}>|</span>
+                    )}
+                  </React.Fragment>
+                ))
+              ) : (
+                <div style={{ width: '1px' }} /> // Empty placeholder when single comment
               )}
             </div>
 
+            {/* @@@ Action buttons on right side */}
             <div style={{
               display: 'flex',
               gap: '4px',
@@ -195,46 +222,6 @@ export function CommentGroupCard({
               >
                 <FaTrash size={10} color={currentComment.feedback === 'kill' ? '#fff' : colors.text} style={{ opacity: currentComment.feedback === 'kill' ? 1 : 0.5 }} />
               </button>
-              {comments.length > 1 && (
-                <>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNavigate((safeIndex - 1 + comments.length) % comments.length);
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      borderRadius: '3px',
-                      padding: '3px 5px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <FaChevronLeft size={10} color={colors.text} style={{ opacity: 0.5 }} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNavigate((safeIndex + 1) % comments.length);
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      borderRadius: '3px',
-                      padding: '3px 5px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <FaChevronRight size={10} color={colors.text} style={{ opacity: 0.5 }} />
-                  </button>
-                </>
-              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();

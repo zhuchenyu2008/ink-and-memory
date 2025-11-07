@@ -287,8 +287,15 @@ export default function App() {
   // @@@ Writing suggestion state
   const [currentInspiration, setCurrentInspiration] = useState<VoiceInspiration | null>(null);
   const [inspirationDisappearing, setInspirationDisappearing] = useState(false);
+  const prevInspirationRef = useRef<VoiceInspiration | null>(null);
   const [_suggestionSnapshot, setSuggestionSnapshot] = useState<string>('');  // Not used yet
   const suggestionTimerRef = useRef<number | null>(null);
+
+  // @@@ Detect if this is a new inspiration appearing (different from previous)
+  // Only check appearing when NOT disappearing (to avoid conflict)
+  const inspirationAppearing = !inspirationDisappearing &&
+    currentInspiration !== null &&
+    currentInspiration !== prevInspirationRef.current;
 
   // @@@ CRITICAL: Resize textareas then restore scroll position
   // Order matters: resize first (changes content height), then restore scroll
@@ -340,10 +347,17 @@ export default function App() {
     }
   }, [inspirationDisappearing]);
 
-  // @@@ Reset disappearing state when new inspiration arrives
+  // @@@ Update prevInspiration ref after render to trigger appearing animation
   useEffect(() => {
     if (currentInspiration) {
       setInspirationDisappearing(false);
+
+      // Wait for next frame to allow CSS transition to detect the change
+      requestAnimationFrame(() => {
+        prevInspirationRef.current = currentInspiration;
+        // @@@ Force re-render to show the appeared state (opacity 1)
+        setRefsReady(prev => prev + 1);
+      });
     }
   }, [currentInspiration]);
 
@@ -1177,6 +1191,9 @@ export default function App() {
       if (loadedState.selectedState !== undefined) {
         setSelectedState(loadedState.selectedState);
       }
+
+      // @@@ Trigger textarea resize after loading entry
+      setRefsReady(prev => prev + 1);
 
       setShowCalendarPopup(false);
     }
@@ -2085,9 +2102,14 @@ export default function App() {
                       fontStyle: 'italic',
                       pointerEvents: 'none',
                       transition: 'all 0.8s cubic-bezier(0.4, 0, 0.6, 1)',
-                      opacity: inspirationDisappearing ? 0 : 1,
-                      transform: inspirationDisappearing ? 'scale(0.95) translateY(-3px)' : 'scale(1) translateY(0)',
-                      filter: inspirationDisappearing ? 'blur(2px)' : 'blur(0)',
+                      // @@@ Appearing animation: reverse of disappearing (emerge from paper)
+                      opacity: inspirationDisappearing ? 0 : (inspirationAppearing ? 0 : 1),
+                      transform: inspirationDisappearing
+                        ? 'scale(0.95) translateY(-3px)'
+                        : (inspirationAppearing ? 'scale(0.95) translateY(-3px)' : 'scale(1) translateY(0)'),
+                      filter: inspirationDisappearing
+                        ? 'blur(2px)'
+                        : (inspirationAppearing ? 'blur(2px)' : 'blur(0)'),
                     }}
                     >
                       {/* Voice Icon */}

@@ -42,7 +42,8 @@ export interface Commentor {
   id: string;
   phrase: string;       // Highlighted phrase
   comment: string;      // The comment
-  voice: string;        // Voice key (for voiceConfigs[key] lookup)
+  voiceId?: string;     // NEW: Voice ID for voiceConfigs lookup (e.g., "mirror")
+  voice: string;        // Voice display name (e.g., "照镜者") - immutable snapshot
   icon: string;         // Icon identifier
   color: string;        // Color identifier
   appliedAt?: number;   // Timestamp when applied (if applied)
@@ -120,7 +121,6 @@ export class EditorEngine {
   private sentCache: Map<string, string> = new Map(); // Track sent sentences -> commentor hash
   private onStateChange?: (state: EditorState) => void;
   private isRequesting: boolean = false; // Track if request in progress
-  private voiceConfigs: Record<string, any> = {}; // Voice configurations from settings
 
   constructor(sessionId: string) {
     this.state = {
@@ -135,8 +135,9 @@ export class EditorEngine {
   }
 
   // @@@ Update voice configurations from settings
-  setVoiceConfigs(configs: Record<string, any>) {
-    this.voiceConfigs = configs;
+  // No-op: Backend now loads voice configs from database, not from frontend
+  setVoiceConfigs(_configs: Record<string, any>) {
+    // Kept for backward compatibility, but does nothing
   }
 
   // @@@ Update a specific text cell by ID
@@ -357,22 +358,9 @@ export class EditorEngine {
 
     try {
       // Call backend (returns ONLY ONE comment at a time)
+      // Backend loads voice configs from database using user_id from JWT token
       const { analyzeText } = await import('../api/voiceApi');
       const { getMetaPrompt, getStateConfig } = await import('../utils/voiceStorage');
-
-      // Convert voiceConfigs to backend format
-      const backendVoices: Record<string, any> = {};
-      for (const [name, cfg] of Object.entries(this.voiceConfigs)) {
-        if (cfg.enabled) {
-          backendVoices[name] = {
-            name: cfg.name,
-            tagline: cfg.systemPrompt,
-            icon: cfg.icon,
-            color: cfg.color
-          };
-        }
-      }
-      console.log('🔍 EditorEngine: Sending to backend, enabled voices:', Object.keys(backendVoices));
 
       // Send only APPLIED commentors to backend
       const appliedCommentors = this.state.commentors.filter(c => c.appliedAt);
@@ -385,7 +373,7 @@ export class EditorEngine {
         ? stateConfig.states[selectedState].prompt
         : '';
 
-      const result = await analyzeText(text, this.state.sessionId, backendVoices, appliedCommentors, metaPrompt, statePrompt, this.state.overlappedPhrases);
+      const result = await analyzeText(text, this.state.sessionId, appliedCommentors, metaPrompt, statePrompt, this.state.overlappedPhrases);
 
       // Backend returns at most ONE voice
       if (result.voices.length > 0) {
@@ -394,7 +382,8 @@ export class EditorEngine {
           id: generateId(),
           phrase: voice.phrase,
           comment: voice.comment,
-          voice: voice.voice,
+          voiceId: voice.voice_id,     // NEW: Store ID for config lookup
+          voice: voice.voice,           // KEEP: Store name for display
           icon: voice.icon,
           color: voice.color,
           computedAt: Date.now(),

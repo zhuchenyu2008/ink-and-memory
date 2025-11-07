@@ -11,6 +11,11 @@ export default defineConfig({
         target: 'http://localhost:8765',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/ink-and-memory/, '')
+      },
+      '/ink-and-memory/polycli': {
+        target: 'http://localhost:8765',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ink-and-memory/, '')
       }
     }
   }

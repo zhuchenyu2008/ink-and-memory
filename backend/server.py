@@ -24,12 +24,13 @@ import auth
     description="Get AI-powered writing inspiration from a voice persona",
     params={
         "text": {"type": "str"},
+        "user_id": {"type": "int"},
         "meta_prompt": {"type": "str"},
         "state_prompt": {"type": "str"}
     },
     category="Writing"
 )
-def get_writing_suggestion(text: str, meta_prompt: str = "", state_prompt: str = ""):
+def get_writing_suggestion(text: str, user_id: int, meta_prompt: str = "", state_prompt: str = ""):
     """Generate writing inspiration from a random voice persona."""
     print(f"\n{'='*60}")
     print(f"✍️  get_writing_suggestion() called")
@@ -52,7 +53,7 @@ def get_writing_suggestion(text: str, meta_prompt: str = "", state_prompt: str =
 
     # Build system prompt - voice gives inspiration, not continuation
     system_prompt = f"""You are {voice_info['name']}, an inner voice persona.
-Your role: {voice_info['tagline']}
+Your role: {voice_info.get('systemPrompt', '')}
 
 Read the user's writing and offer a brief, inspiring comment to help them continue.
 Be encouraging, insightful, or thought-provoking (1-2 sentences).
@@ -96,8 +97,8 @@ Offer a brief, inspiring comment to help them continue writing (1-2 sentences)."
     name="Chat with Voice",
     description="Have a conversation with a specific inner voice persona",
     params={
-        "voice_name": {"type": "str"},
-        "voice_config": {"type": "dict"},
+        "voice_id": {"type": "str"},
+        "user_id": {"type": "int"},
         "conversation_history": {"type": "list"},
         "user_message": {"type": "str"},
         "original_text": {"type": "str"},
@@ -106,28 +107,47 @@ Offer a brief, inspiring comment to help them continue writing (1-2 sentences)."
     },
     category="Chat"
 )
-def chat_with_voice(voice_name: str, voice_config: dict, conversation_history: list, user_message: str, original_text: str = "", meta_prompt: str = "", state_prompt: str = ""):
+def chat_with_voice(voice_id: str, user_id: int, conversation_history: list, user_message: str, original_text: str = "", meta_prompt: str = "", state_prompt: str = ""):
     """Chat with a specific voice persona."""
     print(f"\n{'='*60}")
     print(f"💬 chat_with_voice() called")
-    print(f"   Voice: {voice_name}")
+    print(f"   Voice ID: {voice_id}")
+    print(f"   User ID: {user_id}")
     print(f"   User message: {user_message}")
     print(f"   History length: {len(conversation_history)}")
     print(f"   Meta prompt: {repr(meta_prompt)[:100]}")
     print(f"   State prompt: {repr(state_prompt)[:100]}")
     print(f"{'='*60}\n")
 
-    agent = PolyAgent(id=f"voice-chat-{voice_name.lower()}")
+    # @@@ Load user's voice configs from database
+    prefs = database.get_preferences(user_id)
+    voice_configs = prefs['voice_configs'] if prefs and prefs['voice_configs'] else {}
 
-    # Ensure voice_config is a dict
-    if not isinstance(voice_config, dict):
-        print(f"⚠️  voice_config is not a dict: {type(voice_config)}, using default")
-        voice_config = {"tagline": f"{voice_name} voice from Disco Elysium"}
+    # @@@ Get voice config for this specific voice
+    if voice_id in voice_configs:
+        voice_config = voice_configs[voice_id]
+        voice_name = voice_config.get('name', voice_id)
+        print(f"📚 Loaded voice config from database for {voice_id}: {voice_name}")
+    else:
+        # Fallback: use default from config.VOICE_ARCHETYPES
+        import config
+        if voice_id in config.VOICE_ARCHETYPES:
+            default_voice = config.VOICE_ARCHETYPES[voice_id]
+            voice_name = default_voice['name']
+            voice_config = {"systemPrompt": default_voice['systemPrompt']}
+            print(f"📚 Using default voice config for {voice_id}: {voice_name}")
+        else:
+            # Ultimate fallback
+            voice_name = voice_id
+            voice_config = {"systemPrompt": f"{voice_name} voice"}
+            print(f"⚠️  Voice {voice_id} not found, using fallback")
+
+    agent = PolyAgent(id=f"voice-chat-{voice_name.lower()}")
 
     # Build system prompt for this voice
     system_prompt = f"""You are {voice_name}, an inner voice archetype from Disco Elysium.
 
-Your character: {voice_config.get('tagline', '')}
+Your character: {voice_config.get('systemPrompt', '')}
 
 Respond in character as {voice_name}. Be concise (1-3 sentences). Stay true to your archetype.
 Use the conversation context but focus on your unique perspective."""
@@ -188,24 +208,31 @@ User's current state:
     description="Get one new voice comment for text",
     params={
         "text": {"type": "str"},
-        "session_id": {"type": "str"},
-        "voices": {"type": "dict"},
+        "editor_session_id": {"type": "str"},
+        "user_id": {"type": "int"},
         "applied_comments": {"type": "list"},
         "meta_prompt": {"type": "str"},
-        "state_prompt": {"type": "str"}
+        "state_prompt": {"type": "str"},
+        "overlapped_phrases": {"type": "list"}
     },
     category="Analysis"
 )
-def analyze_text(text: str, session_id: str, voices: dict = None, applied_comments: list = None, meta_prompt: str = "", state_prompt: str = "", overlapped_phrases: list = None):
+def analyze_text(text: str, editor_session_id: str, user_id: int, applied_comments: list = None, meta_prompt: str = "", state_prompt: str = "", overlapped_phrases: list = None):
     """Stateless analysis - returns ONE new comment based on text and applied comments."""
     print(f"\n{'='*60}")
     print(f"🎯 Stateless analyze_text() called")
+    print(f"   User ID: {user_id}")
     print(f"   Text: {text[:100]}...")
     print(f"   Applied comments: {len(applied_comments or [])}")
     print(f"   Overlapped phrases: {len(overlapped_phrases or [])}")
     print(f"   Meta prompt: {repr(meta_prompt)[:100]}")
     print(f"   State prompt: {repr(state_prompt)[:100]}")
     print(f"{'='*60}\n")
+
+    # @@@ Load user's voice configs from database
+    prefs = database.get_preferences(user_id)
+    voices = prefs['voice_configs'] if prefs and prefs['voice_configs'] else None
+    print(f"📚 Loaded voice configs from database: {list(voices.keys()) if voices else 'None (will use defaults)'}")
 
     agent = PolyAgent(id="voice-analyzer")
 
@@ -224,11 +251,12 @@ def analyze_text(text: str, session_id: str, voices: dict = None, applied_commen
     name="Analyze Echoes",
     description="Find recurring themes and topics in all user notes",
     params={
-        "all_notes": {"type": "str"}
+        "all_notes": {"type": "str"},
+        "user_id": {"type": "int"}
     },
     category="Analysis"
 )
-def analyze_echoes(all_notes: str):
+def analyze_echoes(all_notes: str, user_id: int):
     """Analyze recurring themes and topics across all notes."""
     print(f"\n{'='*60}")
     print(f"🔄 analyze_echoes() called")
@@ -273,11 +301,12 @@ Return ONLY the JSON array, no other text."""
     name="Analyze Traits",
     description="Identify personality traits and characteristics from user notes",
     params={
-        "all_notes": {"type": "str"}
+        "all_notes": {"type": "str"},
+        "user_id": {"type": "int"}
     },
     category="Analysis"
 )
-def analyze_traits(all_notes: str):
+def analyze_traits(all_notes: str, user_id: int):
     """Analyze personality traits from all notes."""
     print(f"\n{'='*60}")
     print(f"👤 analyze_traits() called")
@@ -322,11 +351,12 @@ Return ONLY the JSON array, no other text."""
     name="Analyze Patterns",
     description="Identify behavioral patterns and habits from user notes",
     params={
-        "all_notes": {"type": "str"}
+        "all_notes": {"type": "str"},
+        "user_id": {"type": "int"}
     },
     category="Analysis"
 )
-def analyze_patterns(all_notes: str):
+def analyze_patterns(all_notes: str, user_id: int):
     """Analyze behavioral patterns from all notes."""
     print(f"\n{'='*60}")
     print(f"🔍 analyze_patterns() called")
@@ -371,11 +401,12 @@ Return ONLY the JSON array, no other text."""
     name="Generate Daily Picture",
     description="Generate an artistic image based on user's daily notes",
     params={
-        "all_notes": {"type": "str"}
+        "all_notes": {"type": "str"},
+        "user_id": {"type": "int"}
     },
     category="Creative"
 )
-def generate_daily_picture(all_notes: str):
+def generate_daily_picture(all_notes: str, user_id: int):
     """Generate an image based on the essence of user's daily notes."""
     print(f"\n{'='*60}")
     print(f"🎨 generate_daily_picture() called")
@@ -1043,24 +1074,7 @@ def save_preferences_endpoint(
 
     return {"success": True}
 
-@app.post("/api/suggest")
-async def suggest_api(request_data: dict):
-    """
-    @@@ Get writing continuation suggestions (sync API).
-
-    Uses PolyCLI's sync API internally - no polling needed!
-    """
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8765/polycli/api/trigger-sync",
-            json={
-                "session_id": "get_writing_suggestion",
-                "params": request_data,
-                "timeout": 30.0
-            },
-            timeout=35.0
-        )
-        return response.json()
+# @@@ Removed /api/suggest wrapper - frontend now calls /polycli/api/trigger-sync directly
 
 @app.post("/api/mark-first-login-completed")
 def mark_first_login_completed(current_user: dict = Depends(get_current_user)):
@@ -1115,112 +1129,20 @@ def get_default_voices():
     """Get default voice configurations"""
     return config.VOICE_ARCHETYPES
 
-@app.post("/api/analyze")
-async def analyze_api(request_data: dict):
-    """
-    @@@ Analyze text and return ONE new voice comment (sync API).
+# @@@ Removed /api/analyze wrapper - frontend now calls /polycli/api/trigger-sync directly
 
-    Uses PolyCLI's sync API internally - no polling needed!
-    """
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8765/polycli/api/trigger-sync",
-            json={
-                "session_id": "analyze_text",
-                "params": request_data,
-                "timeout": 30.0
-            },
-            timeout=35.0
-        )
-        return response.json()
+# @@@ Removed /api/chat wrapper - frontend now calls /polycli/api/trigger-sync directly
 
-@app.post("/api/chat")
-async def chat_api(request_data: dict):
-    """
-    @@@ Chat with a voice persona (sync API).
-
-    Uses PolyCLI's sync API internally - no polling needed!
-    """
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8765/polycli/api/trigger-sync",
-            json={
-                "session_id": "chat_with_voice",
-                "params": request_data,
-                "timeout": 30.0
-            },
-            timeout=35.0
-        )
-        return response.json()
-
-@app.post("/api/generate-image")
-async def generate_image_api(request_data: dict):
-    """
-    @@@ Generate artistic image from notes (sync API).
-
-    This may take longer (120s timeout) due to image generation.
-    """
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8765/polycli/api/trigger-sync",
-            json={
-                "session_id": "generate_daily_picture",
-                "params": request_data,
-                "timeout": 120.0  # Image generation takes ~90s without proxy
-            },
-            timeout=125.0
-        )
-        return response.json()
-
-@app.post("/api/analyze-echoes")
-async def analyze_echoes_api(request_data: dict):
-    """Analyze recurring themes in notes (sync API)."""
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8765/polycli/api/trigger-sync",
-            json={
-                "session_id": "analyze_echoes",
-                "params": request_data,
-                "timeout": 30.0
-            },
-            timeout=35.0
-        )
-        return response.json()
-
-@app.post("/api/analyze-traits")
-async def analyze_traits_api(request_data: dict):
-    """Analyze personality traits from notes (sync API)."""
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8765/polycli/api/trigger-sync",
-            json={
-                "session_id": "analyze_traits",
-                "params": request_data,
-                "timeout": 30.0
-            },
-            timeout=35.0
-        )
-        return response.json()
-
-@app.post("/api/analyze-patterns")
-async def analyze_patterns_api(request_data: dict):
-    """Analyze behavioral patterns from notes (sync API)."""
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8765/polycli/api/trigger-sync",
-            json={
-                "session_id": "analyze_patterns",
-                "params": request_data,
-                "timeout": 30.0
-            },
-            timeout=35.0
-        )
-        return response.json()
+# @@@ Removed /api/generate-image wrapper - frontend now calls /polycli/api/trigger-sync directly
+# @@@ Removed /api/analyze-echoes wrapper - frontend now calls /polycli/api/trigger-sync directly
+# @@@ Removed /api/analyze-traits wrapper - frontend now calls /polycli/api/trigger-sync directly
+# @@@ Removed /api/analyze-patterns wrapper - frontend now calls /polycli/api/trigger-sync directly
 
 # ========== Mount PolyCLI Control Panel ==========
 
 registry = get_registry()
-mount_control_panel(app, registry, prefix="/polycli")
+# @@@ Pass auth_callback to enable authentication for /polycli/api/trigger-sync
+mount_control_panel(app, registry, prefix="/polycli", auth_callback=auth.verify_access_token)
 
 # ========== Main ==========
 
@@ -1231,18 +1153,30 @@ if __name__ == "__main__":
     print("🎭 Ink & Memory FastAPI Server")
     print("="*60)
     print("\n📚 API Endpoints:")
-    print("  Clean API:")
-    print("    POST /api/analyze         - Analyze text (sync)")
-    print("    POST /api/chat            - Chat with voice (sync)")
-    print("    POST /api/generate-image  - Generate image (sync)")
-    print("    POST /api/analyze-echoes  - Find themes (sync)")
-    print("    POST /api/analyze-traits  - Identify traits (sync)")
-    print("    POST /api/analyze-patterns - Find patterns (sync)")
-    print("    POST /api/suggest         - Get writing suggestions (sync)")
-    print("    GET  /api/default-voices  - Get voice configs")
-    print("\n  PolyCLI Control Panel:")
+    print("  Auth & User:")
+    print("    POST /api/register        - Register new user")
+    print("    POST /api/login           - Login")
+    print("    GET  /api/me              - Get current user")
+    print("  Data Storage:")
+    print("    POST /api/sessions        - Save session")
+    print("    GET  /api/sessions        - List sessions")
+    print("    GET  /api/sessions/{id}   - Get session")
+    print("    DELETE /api/sessions/{id} - Delete session")
+    print("    POST /api/pictures        - Save daily picture")
+    print("    GET  /api/pictures        - List pictures")
+    print("    GET  /api/preferences     - Get user preferences")
+    print("    POST /api/preferences     - Save preferences")
+    print("    GET  /api/reports         - Get analysis reports")
+    print("    POST /api/reports         - Save report")
+    print("  Configuration:")
+    print("    GET  /api/default-voices  - Get default voice configs")
+    print("\n  PolyCLI (AI Functions):")
     print("    /polycli                  - Control panel UI")
     print("    /polycli/api/trigger-sync - Direct sync API")
+    print("       Sessions: analyze_text, chat_with_voice,")
+    print("                 get_writing_suggestion, analyze_echoes,")
+    print("                 analyze_traits, analyze_patterns,")
+    print("                 generate_daily_picture")
     print("\n  Documentation:")
     print("    /docs                     - Auto-generated API docs")
     print("="*60 + "\n")

@@ -8,7 +8,8 @@ import config
 
 class VoiceTrigger(BaseModel):
     phrase: str = Field(description="Exact trigger phrase from text (verbatim, 2-4 words, avoid punctuation)")
-    voice: str = Field(description="Voice archetype name from the available list")
+    voice_id: str = Field(description="Voice ID from the available list (e.g., 'holder', 'mirror', 'unpacker')")
+    voice_name: str = Field(description="Voice display name (will be auto-filled, LLM should not generate this)")
     comment: str = Field(description="What this voice is saying (as if speaking)")
     icon: str = Field(description="Icon identifier")
     color: str = Field(description="Color identifier")
@@ -44,8 +45,8 @@ def analyze_stateless(agent: PolyAgent, text: str, applied_comments: List[dict],
 
     # Build voice list for prompt
     voice_list = "\n".join([
-        f"- {v.get('name', name)} ({v['icon']}, {v['color']}): {v['tagline']}"
-        for name, v in voice_archetypes.items()
+        f"- ID: {key} | Name: {v.get('name', key)} | ({v['icon']}, {v['color']})\n  {v.get('systemPrompt', '')}"
+        for key, v in voice_archetypes.items()
     ])
 
     # Build existing conversation context
@@ -100,7 +101,9 @@ Find ONE NEW voice to comment:
    - Do NOT extract from the conversation context or rejected phrases
    - Verify character-by-character that your phrase exists in the text
 
-2. Choose a voice persona from the available list
+2. Choose a voice ID from the available list above
+   - Use the ID field (e.g., 'holder', 'mirror'), NOT the name
+   - Return ONLY the ID in the voice_id field
 
 3. Write what this voice is saying (1-2 sentences)
 
@@ -112,7 +115,9 @@ CRITICAL RULES:
 - DO NOT suggest any rejected phrases: {overlapped_phrases}
 - DO NOT CREATE NEW VOICE NAMES - Only use from the available list
 - Return null if nothing is worth commenting on
-- Write in the SAME LANGUAGE as the text"""
+- Write in the SAME LANGUAGE as the text
+
+IMPORTANT: Return voice_id only (e.g., "holder"). Do NOT fill voice_name - it will be auto-filled."""
 
     # @@@ Add meta prompt if available
     if meta_prompt and meta_prompt.strip():
@@ -145,23 +150,28 @@ User's current state:
     voice = result.data.get("voice")
 
     if voice:
-        print(f"✅ Got 1 new comment: {voice.get('voice', 'Unknown')}")
+        # @@@ Validate LLM returned a valid voice ID
+        voice_id = voice.get("voice_id")
 
-        # Map user-defined names back to get correct icon/color
-        name_to_key = {}
-        for key, v in voice_archetypes.items():
-            user_name = v.get("name", key)
-            name_to_key[user_name] = key
+        if not voice_id or voice_id not in voice_archetypes:
+            print(f"⚠️ Invalid voice ID: {voice_id}, skipping")
+            return {"voices": [], "new_voices_added": 0}
 
-        # @@@ Map LLM's name back to key for frontend voiceConfigs[key] lookup
-        llm_voice_name = voice.get("voice")
-        archetype_key = name_to_key.get(llm_voice_name)
-        if archetype_key and archetype_key in voice_archetypes:
-            voice["icon"] = voice_archetypes[archetype_key]["icon"]
-            voice["color"] = voice_archetypes[archetype_key]["color"]
-            voice["voice"] = archetype_key  # Return key, not name
+        # Get archetype info
+        archetype = voice_archetypes[voice_id]
 
-        return {"voices": [voice], "new_voices_added": 1}
+        # Build return object with both ID and name
+        result_voice = {
+            "phrase": voice.get("phrase"),
+            "voice_id": voice_id,                    # NEW: ID for lookup
+            "voice": archetype.get("name", voice_id), # KEEP: Name for display
+            "comment": voice.get("comment"),
+            "icon": archetype["icon"],               # Ensure correct icon
+            "color": archetype["color"]              # Ensure correct color
+        }
+
+        print(f"✅ Got 1 new comment: {voice_id} ({result_voice['voice']})")
+        return {"voices": [result_voice], "new_voices_added": 1}
     else:
         print("📭 No new comment")
         return {"voices": [], "new_voices_added": 0}

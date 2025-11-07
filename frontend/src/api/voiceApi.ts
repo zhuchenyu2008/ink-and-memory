@@ -34,7 +34,8 @@ interface SyncResponse {
   result?: {
     voices?: Array<{
       phrase: string;
-      voice: string;
+      voice_id: string;  // NEW: Voice ID for lookup
+      voice: string;     // Display name
       comment: string;
       icon: string;
       color: string;
@@ -55,26 +56,36 @@ interface SyncResponse {
 }
 
 /**
- * Analyze text and return voices with metadata (sync API - no polling!)
+ * Analyze text and return voices with metadata (PolyCLI direct call)
+ * Backend loads voice configs from database using user_id from JWT token
  */
-export async function analyzeText(text: string, sessionId: string, voices?: any, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]) {
-  const response = await fetch(`${API_BASE}/api/analyze`, {
+export async function analyzeText(text: string, sessionId: string, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]) {
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+  const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
     body: JSON.stringify({
-      text,
-      session_id: sessionId,
-      voices,
-      applied_comments: appliedComments || [],
-      meta_prompt: metaPrompt || '',
-      state_prompt: statePrompt || '',
-      overlapped_phrases: overlappedPhrases || []
+      session_id: 'analyze_text',  // Maps to function name in backend (NOT the display name)
+      params: {
+        text,
+        editor_session_id: sessionId,  // Renamed to avoid conflict with PolyCLI routing session_id
+        applied_comments: appliedComments || [],
+        meta_prompt: metaPrompt || '',
+        state_prompt: statePrompt || '',
+        overlapped_phrases: overlappedPhrases || []
+      },
+      timeout: 60
     })
   });
 
   const data: SyncResponse = await response.json();
 
   if (!data.success) {
+    console.error('❌ Analysis failed:', data);
     throw new Error(data.error || 'Analysis failed');
   }
 
@@ -86,28 +97,36 @@ export async function analyzeText(text: string, sessionId: string, voices?: any,
 }
 
 /**
- * Chat with a voice persona (sync API - no polling!)
+ * Chat with a voice persona (PolyCLI direct call)
+ * Backend loads voice config from database using voice_id and user_id from JWT
  */
 export async function chatWithVoice(
-  voiceName: string,
-  voiceConfig: any,
+  voiceId: string,  // Voice ID for database lookup (e.g., "holder", "mirror")
   conversationHistory: Array<{ role: string; content: string }>,
   userMessage: string,
   originalText?: string,
   metaPrompt?: string,
   statePrompt?: string
 ): Promise<string> {
-  const response = await fetch(`${API_BASE}/api/chat`, {
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+  const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
     body: JSON.stringify({
-      voice_name: voiceName,
-      voice_config: voiceConfig,
-      conversation_history: conversationHistory,
-      user_message: userMessage,
-      original_text: originalText || '',
-      meta_prompt: metaPrompt || '',
-      state_prompt: statePrompt || ''
+      session_id: 'chat_with_voice',
+      params: {
+        voice_id: voiceId,
+        conversation_history: conversationHistory,
+        user_message: userMessage,
+        original_text: originalText || '',
+        meta_prompt: metaPrompt || '',
+        state_prompt: statePrompt || ''
+      },
+      timeout: 60
     })
   });
 
@@ -121,13 +140,22 @@ export async function chatWithVoice(
 }
 
 /**
- * Analyze echoes (recurring themes) from all notes (sync API - no polling!)
+ * Analyze echoes (recurring themes) from all notes (PolyCLI direct call)
  */
 export async function analyzeEchoes(allNotes: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/analyze-echoes`, {
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+  const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ all_notes: allNotes })
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      session_id: 'analyze_echoes',
+      params: { all_notes: allNotes },
+      timeout: 60
+    })
   });
 
   const data: SyncResponse = await response.json();
@@ -140,13 +168,22 @@ export async function analyzeEchoes(allNotes: string): Promise<any[]> {
 }
 
 /**
- * Analyze traits (personality characteristics) from all notes (sync API - no polling!)
+ * Analyze traits (personality characteristics) from all notes (PolyCLI direct call)
  */
 export async function analyzeTraits(allNotes: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/analyze-traits`, {
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+  const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ all_notes: allNotes })
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      session_id: 'analyze_traits',
+      params: { all_notes: allNotes },
+      timeout: 60
+    })
   });
 
   const data: SyncResponse = await response.json();
@@ -159,13 +196,22 @@ export async function analyzeTraits(allNotes: string): Promise<any[]> {
 }
 
 /**
- * Analyze patterns (behavioral patterns) from all notes (sync API - no polling!)
+ * Analyze patterns (behavioral patterns) from all notes (PolyCLI direct call)
  */
 export async function analyzePatterns(allNotes: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/analyze-patterns`, {
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+  const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ all_notes: allNotes })
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      session_id: 'analyze_patterns',
+      params: { all_notes: allNotes },
+      timeout: 60
+    })
   });
 
   const data: SyncResponse = await response.json();
@@ -178,13 +224,22 @@ export async function analyzePatterns(allNotes: string): Promise<any[]> {
 }
 
 /**
- * Generate a daily picture based on user's notes (sync API - no polling!)
+ * Generate a daily picture based on user's notes (PolyCLI direct call)
  */
 export async function generateDailyPicture(allNotes: string): Promise<{ image_base64: string; thumbnail_base64?: string; prompt: string }> {
-  const response = await fetch(`${API_BASE}/api/generate-image`, {
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+  const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ all_notes: allNotes })
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      session_id: 'generate_daily_picture',
+      params: { all_notes: allNotes },
+      timeout: 60
+    })
   });
 
   const data: SyncResponse = await response.json();
@@ -417,13 +472,22 @@ export interface VoiceInspiration {
 }
 
 export async function getSuggestion(text: string, metaPrompt?: string, statePrompt?: string): Promise<VoiceInspiration | null> {
-  const response = await fetch(`${API_BASE}/api/suggest`, {
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+  const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
     body: JSON.stringify({
-      text,
-      meta_prompt: metaPrompt || '',
-      state_prompt: statePrompt || ''
+      session_id: 'get_writing_suggestion',
+      params: {
+        text,
+        meta_prompt: metaPrompt || '',
+        state_prompt: statePrompt || ''
+      },
+      timeout: 60
     })
   });
 
@@ -434,8 +498,8 @@ export async function getSuggestion(text: string, metaPrompt?: string, stateProm
 
   const data = await response.json();
 
-  // @@@ PolyCLI trigger-sync wraps the session result in data.result
-  if (data.result && data.result.success && data.result.inspiration) {
+  // PolyCLI returns {success: true, result: {...}}
+  if (data.success && data.result?.inspiration) {
     return {
       inspiration: data.result.inspiration,
       voice: data.result.voice,

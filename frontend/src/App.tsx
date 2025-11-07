@@ -10,7 +10,7 @@ import {
   FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass,
   FaAlignRight
 } from 'react-icons/fa';
-import LeftSidebar from './components/LeftSidebar';
+import TopNavBar from './components/TopNavBar';
 import VoiceSettings from './components/VoiceSettings';
 import CalendarPopup from './components/CalendarPopup';
 import { saveEntryToToday, type CalendarEntry } from './utils/calendarStorage';
@@ -285,8 +285,8 @@ export default function App() {
 
   // @@@ Writing suggestion state
   const [currentInspiration, setCurrentInspiration] = useState<VoiceInspiration | null>(null);
-  const [suggestionSnapshot, setSuggestionSnapshot] = useState<string>('');
-  const suggestionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [_suggestionSnapshot, setSuggestionSnapshot] = useState<string>('');  // Not used yet
+  const suggestionTimerRef = useRef<number | null>(null);
 
   // @@@ Trigger re-render when returning to writing view to recalculate comment positions
   useEffect(() => {
@@ -1332,12 +1332,6 @@ export default function App() {
         .map(c => (c as TextCell).content)
         .join('');
 
-      // Get the voice config for this comment
-      const voiceConfig = voiceConfigs[comment.voice];
-      if (!voiceConfig) {
-        throw new Error(`Voice config not found for ${comment.voice}`);
-      }
-
       // Get conversation history (excluding the message we just added)
       const chatHistory = comment.chatHistory?.slice(0, -1) || [];
 
@@ -1346,9 +1340,12 @@ export default function App() {
         ? stateConfig.states[selectedState].prompt
         : '';
 
+      // @@@ Use voiceId if available (new comments), fall back to voice name (old comments)
+      // Backend loads voice config from database using user_id from JWT
+      const voiceId = comment.voiceId || comment.voice;
+
       const response = await chatWithVoice(
-        comment.voice,
-        voiceConfig,
+        voiceId,
         chatHistory,
         message,
         allText,
@@ -1451,14 +1448,15 @@ export default function App() {
         .map(c => (c as TextCell).content)
         .join('');
 
-      // Call backend - use voiceConfig.name as the voice name for the prompt
       const metaPrompt = getMetaPrompt();
       const statePrompt = selectedState && stateConfig.states[selectedState]
         ? stateConfig.states[selectedState].prompt
         : '';
+
+      // @@@ Use voiceName (which is the voice ID/key) for backend lookup
+      // Backend loads voice config from database using user_id from JWT
       const response = await chatWithVoice(
-        widgetData.voiceConfig.name,  // Use the display name, not the key
-        widgetData.voiceConfig,
+        widgetData.voiceName,  // This is the voice ID (key like "holder", "mirror")
         chatWidget.getConversationHistory().slice(0, -1), // Exclude last message (just added)
         message,
         allText,
@@ -1723,8 +1721,8 @@ export default function App() {
         </div>
       )}
 
-      {/* @@@ Hide sidebar on mobile */}
-      {!isMobile && <LeftSidebar currentView={currentView} onViewChange={setCurrentView} />}
+      {/* @@@ Hide top nav on mobile */}
+      {!isMobile && <TopNavBar currentView={currentView} onViewChange={setCurrentView} />}
 
       {currentView === 'writing' && (
         <div style={{

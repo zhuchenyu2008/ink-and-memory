@@ -11,6 +11,7 @@ interface Props {
 export default function StateChooser({ stateConfig, selectedState, onChoose }: Props) {
   const [isExpanded, setIsExpanded] = useState(!selectedState);
   const [shouldAnimate, setShouldAnimate] = useState(false);
+  const [isFadingOut, setIsFadingOut] = useState(false);
   const indicatorRef = useRef<HTMLDivElement>(null);
 
   // @@@ Collapse when selectedState is set externally
@@ -35,8 +36,15 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
   });
 
   const handleStateSelect = (stateId: string) => {
-    onChoose(stateId);
-    setIsExpanded(false);
+    // Trigger fade-out animation
+    setIsFadingOut(true);
+
+    // Wait for animation, then collapse and notify parent
+    setTimeout(() => {
+      setIsExpanded(false);
+      setIsFadingOut(false);
+      onChoose(stateId);
+    }, 800); // Match animation duration
   };
 
   // @@@ Mini icon generator for collapsed state (24px version)
@@ -161,53 +169,62 @@ export default function StateChooser({ stateConfig, selectedState, onChoose }: P
           </div>
         </div>
       ) : (
-        /* Expanded view - cube centered on entire screen */
-        <>
-          {/* Date header - stays in place */}
-          <div style={{
-            fontSize: 13,
-            color: '#666',
-            fontWeight: 400
+        /* Expanded view - full-screen white overlay */
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#ffffff',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          opacity: isFadingOut ? 0 : 1,
+          transition: 'opacity 0.8s ease-out',
+          pointerEvents: isFadingOut ? 'none' : 'auto'
+        }}>
+          {/* Header text */}
+          <h1 style={{
+            fontSize: 48,
+            fontWeight: 300,
+            color: '#333',
+            marginBottom: 60,
+            textAlign: 'center',
+            letterSpacing: '0.05em',
+            opacity: isFadingOut ? 0 : 1,
+            transform: isFadingOut ? 'translateY(-20px)' : 'translateY(0)',
+            transition: 'all 0.8s ease-out'
           }}>
-            {dateString}
+            {stateConfig.greeting || "What's your emotion today?"}
+          </h1>
+
+          {/* 3D Cube */}
+          <div style={{
+            opacity: isFadingOut ? 0 : 1,
+            transform: isFadingOut ? 'scale(0.9)' : 'scale(1)',
+            transition: 'all 0.8s ease-out'
+          }}>
+            <StateCube
+              stateConfig={stateConfig}
+              onStateSelect={handleStateSelect}
+            />
           </div>
 
-          {/* Fixed overlay - cube centered on viewport */}
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            pointerEvents: 'none'
+          {/* Helper text */}
+          <p style={{
+            marginTop: 40,
+            fontSize: 14,
+            color: '#999',
+            textAlign: 'center',
+            opacity: isFadingOut ? 0 : 1,
+            transition: 'opacity 0.8s ease-out'
           }}>
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 20,
-              pointerEvents: 'auto'
-            }}>
-              <StateCube
-                stateConfig={stateConfig}
-                onStateSelect={handleStateSelect}
-              />
-
-              {/* Helper text */}
-              <div style={{
-                fontSize: 12,
-                color: '#999',
-                textAlign: 'center'
-              }}>
-                Click a state to select
-              </div>
-            </div>
-          </div>
-        </>
+            Click a state to begin writing
+          </p>
+        </div>
       )}
       </div>
     </>

@@ -38,37 +38,37 @@ def _load_prompt(filename):
 VOICE_ARCHETYPES = {
     "holder": {
         "name": "接纳者 (The Holder)",
-        "tagline": _load_prompt("holder.md"),
+        "systemPrompt": _load_prompt("holder.md"),
         "icon": "heart",
         "color": "pink"
     },
     "unpacker": {
         "name": "拆解者 (The Unpacker)",
-        "tagline": _load_prompt("unpacker.md"),
+        "systemPrompt": _load_prompt("unpacker.md"),
         "icon": "brain",
         "color": "blue"
     },
     "starter": {
         "name": "启动者 (The Starter)",
-        "tagline": _load_prompt("starter.md"),
+        "systemPrompt": _load_prompt("starter.md"),
         "icon": "fist",
         "color": "yellow"
     },
     "mirror": {
         "name": "照镜者 (The Mirror)",
-        "tagline": _load_prompt("mirror.md"),
+        "systemPrompt": _load_prompt("mirror.md"),
         "icon": "eye",
         "color": "green"
     },
     "weaver": {
         "name": "连接者 (The Weaver)",
-        "tagline": _load_prompt("weaver.md"),
+        "systemPrompt": _load_prompt("weaver.md"),
         "icon": "compass",
         "color": "purple"
     },
     "absurdist": {
         "name": "幽默者 (The Absurdist)",
-        "tagline": _load_prompt("absurdist.md"),
+        "systemPrompt": _load_prompt("absurdist.md"),
         "icon": "masks",
         "color": "pink"
     }

@@ -4,6 +4,63 @@
 
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
+// ========== Inline Types (workaround for Vite bug) ==========
+export interface VoiceConfig {
+  name: string;
+  systemPrompt: string;
+  enabled: boolean;
+  icon: string;
+  color: string;
+}
+
+export interface UserState {
+  name: string;
+  prompt: string;
+}
+
+export interface StateConfig {
+  greeting: string;
+  states: Record<string, UserState>;
+}
+export interface Voice {
+  id: string;
+  deck_id: string;
+  name: string;
+  name_zh?: string;
+  name_en?: string;
+  system_prompt: string;
+  icon: string;
+  color: string;
+  is_system: boolean;
+  parent_id?: string;
+  owner_id?: number;
+  enabled: boolean;
+  order_index?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Deck {
+  id: string;
+  name: string;
+  name_zh?: string;
+  name_en?: string;
+  description?: string;
+  description_zh?: string;
+  description_en?: string;
+  icon?: string;
+  color?: string;
+  is_system: boolean;
+  parent_id?: string;
+  owner_id?: number;
+  enabled: boolean;
+  order_index?: number;
+  voice_count?: number;
+  voices?: Voice[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 // nginx proxies /ink-and-memory/api/* to backend (8765)
 const API_BASE = '/ink-and-memory';
 
@@ -561,5 +618,256 @@ export async function markFirstLoginCompleted(): Promise<void> {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Mark first login completed failed');
+  }
+}
+
+// ========== Deck System API ==========
+
+/**
+ * List all decks (includes system decks + user's own decks)
+ */
+export async function listDecks(): Promise<Deck[]> {
+  const response = await fetch(`${API_BASE}/api/decks`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'List decks failed');
+  }
+
+  const data = await response.json();
+  return data.decks;
+}
+
+/**
+ * Get a specific deck with all its voices
+ */
+export async function getDeck(deckId: string): Promise<Deck> {
+  const response = await fetch(`${API_BASE}/api/decks/${deckId}`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get deck failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Create a new deck
+ */
+export async function createDeck(data: {
+  name: string;
+  name_zh?: string;
+  name_en?: string;
+  description?: string;
+  description_zh?: string;
+  description_en?: string;
+  icon?: string;
+  color?: string;
+}): Promise<{ deck_id: string }> {
+  const response = await fetch(`${API_BASE}/api/decks`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Create deck failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Update a deck (only user-owned decks)
+ */
+export async function updateDeck(deckId: string, data: {
+  name?: string;
+  name_zh?: string;
+  name_en?: string;
+  description?: string;
+  description_zh?: string;
+  description_en?: string;
+  icon?: string;
+  color?: string;
+  enabled?: boolean;
+  order_index?: number;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/decks/${deckId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Update deck failed');
+  }
+}
+
+/**
+ * Delete a deck (only user-owned decks, cascades to voices)
+ */
+export async function deleteDeck(deckId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/decks/${deckId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Delete deck failed');
+  }
+}
+
+/**
+ * Fork a deck (copy-on-write: creates user-owned copy of system deck)
+ */
+export async function forkDeck(deckId: string): Promise<{ deck_id: string }> {
+  const response = await fetch(`${API_BASE}/api/decks/${deckId}/fork`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Fork deck failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Create a new voice in a deck
+ */
+export async function createVoice(data: {
+  deck_id: string;
+  name: string;
+  name_zh?: string;
+  name_en?: string;
+  system_prompt: string;
+  icon: string;
+  color: string;
+}): Promise<{ voice_id: string }> {
+  const response = await fetch(`${API_BASE}/api/voices`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Create voice failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Update a voice (only voices in user-owned decks)
+ */
+export async function updateVoice(voiceId: string, data: {
+  name?: string;
+  name_zh?: string;
+  name_en?: string;
+  system_prompt?: string;
+  icon?: string;
+  color?: string;
+  enabled?: boolean;
+  order_index?: number;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/voices/${voiceId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Update voice failed');
+  }
+}
+
+/**
+ * Delete a voice (only voices in user-owned decks)
+ */
+export async function deleteVoice(voiceId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/voices/${voiceId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Delete voice failed');
+  }
+}
+
+/**
+ * Fork a voice to a target deck (copy-on-write: creates user-owned copy)
+ */
+export async function forkVoice(voiceId: string, targetDeckId: string): Promise<{ voice_id: string }> {
+  const response = await fetch(`${API_BASE}/api/voices/${voiceId}/fork`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ target_deck_id: targetDeckId })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Fork voice failed');
+  }
+
+  return await response.json();
+}
+
+// ========== Voice Config Loading ==========
+
+/**
+ * @@@ Load all enabled voices from all enabled decks and convert to VoiceConfig format
+ * This bridges the new deck system with the existing voice analysis system
+ */
+export async function loadVoicesFromDecks(): Promise<Record<string, VoiceConfig>> {
+  try {
+    const decks = await listDecks();
+    const voiceConfigs: Record<string, VoiceConfig> = {};
+
+    // Load voices from each enabled deck
+    for (const deck of decks) {
+      if (!deck.enabled) continue;
+
+      try {
+        const fullDeck = await getDeck(deck.id);
+
+        if (fullDeck.voices) {
+          for (const voice of fullDeck.voices) {
+            if (!voice.enabled) continue;
+
+            // Convert Voice to VoiceConfig format
+            voiceConfigs[voice.name] = {
+              name: voice.name,
+              systemPrompt: voice.system_prompt,
+              enabled: voice.enabled,
+              icon: voice.icon,
+              color: voice.color
+            };
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to load voices from deck ${deck.id}:`, err);
+        // Continue loading other decks even if one fails
+      }
+    }
+
+    return voiceConfigs;
+  } catch (err) {
+    console.error('Failed to load voices from decks:', err);
+    // Return empty object if loading fails - app can fall back to localStorage
+    return {};
   }
 }

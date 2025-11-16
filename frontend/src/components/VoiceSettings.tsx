@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { VoiceConfig, StateConfig, UserState } from '../types/voice';
+import type { VoiceConfig, StateConfig, UserState } from '../api/voiceApi';
 import { saveVoices, clearVoices, getMetaPrompt, saveMetaPrompt, getStateConfig, saveStateConfig } from '../utils/voiceStorage';
 import {
   FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye,

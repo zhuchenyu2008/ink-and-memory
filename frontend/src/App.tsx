@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fa';
 import TopNavBar from './components/TopNavBar';
 import VoiceSettings from './components/VoiceSettings';
+import DeckManager from './components/DeckManager';
 import CalendarPopup from './components/CalendarPopup';
 import { saveEntryToToday, type CalendarEntry } from './utils/calendarStorage';
 import CollectionsView from './components/CollectionsView';
@@ -20,9 +21,9 @@ import AboutView from './components/AboutView';
 import AgentDropdown from './components/AgentDropdown';
 import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
-import type { VoiceConfig, StateConfig } from './types/voice';
+import type { VoiceConfig, StateConfig } from './api/voiceApi';
 import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
-import { getDefaultVoices, chatWithVoice, importLocalData, getSuggestion, type VoiceInspiration } from './api/voiceApi';
+import { getDefaultVoices, chatWithVoice, importLocalData, getSuggestion, loadVoicesFromDecks, type VoiceInspiration } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
 import { CommentGroupCard } from './components/CommentCard';
 import { findNormalizedPhrase } from './utils/textNormalize';
@@ -237,7 +238,7 @@ export default function App() {
   const [showMigrationDialog, setShowMigrationDialog] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
 
-  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'about'>('writing');
+  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'decks'>('writing');
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
   const [metaPrompt, setMetaPrompt] = useState<string>('');
@@ -361,9 +362,9 @@ export default function App() {
     }
   }, [currentInspiration]);
 
-  // @@@ Fetch default voices from backend
+  // @@@ Fetch default voices from backend and load from deck system
   useEffect(() => {
-    getDefaultVoices().then(backendVoices => {
+    getDefaultVoices().then(async backendVoices => {
       const converted: Record<string, VoiceConfig> = {};
       for (const [name, data] of Object.entries(backendVoices)) {
         const v = data as any;
@@ -376,8 +377,14 @@ export default function App() {
         };
       }
       setDefaultVoiceConfigs(converted);
-      const configs = getVoices() || converted;
+
+      // @@@ Try loading from deck system first, then localStorage, then defaults
+      const deckVoices = await loadVoicesFromDecks();
+      const hasDecks = Object.keys(deckVoices).length > 0;
+      const configs = hasDecks ? deckVoices : (getVoices() || converted);
       setVoiceConfigs(configs);
+
+      console.log(`📚 Loaded voices from: ${hasDecks ? 'deck system' : 'localStorage or defaults'}`);
 
       // Update engine with voice configs
       if (engineRef.current) {
@@ -2293,7 +2300,7 @@ export default function App() {
           )}
         </div>
       )}
-      {currentView === 'settings' && (
+      {currentView === 'decks' && (
         <div style={{
           position: 'fixed',
           top: 48,
@@ -2304,13 +2311,97 @@ export default function App() {
           display: 'flex',
           overflow: 'hidden'
         }}>
-          <VoiceSettings
-            defaultVoices={defaultVoiceConfigs}
-            currentVoices={voiceConfigs}
-            currentMetaPrompt={metaPrompt}
-            currentStateConfig={loadedStateConfig}
-            onSave={handleVoiceConfigsSave}
-          />
+          <DeckManager onUpdate={() => {
+            // Reload voice configs when decks/voices are updated
+            console.log('Deck system updated, reloading...');
+          }} />
+        </div>
+      )}
+      {currentView === 'settings' && (
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '60px 40px 120px 40px',
+          overflow: 'auto',
+          position: 'fixed',
+          top: 48,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: '#f8f0e6'
+        }}>
+          <div style={{
+            maxWidth: 800,
+            width: '100%'
+          }}>
+            {/* Language Toggle (Placeholder) */}
+            <section style={{ marginBottom: 48 }}>
+              <h2 style={{
+                fontSize: 24,
+                fontWeight: 600,
+                color: '#2c2c2c',
+                marginBottom: 16,
+                fontFamily: 'Georgia, "Times New Roman", serif'
+              }}>
+                Settings
+              </h2>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.5)',
+                border: '1px solid #d0c4b0',
+                borderRadius: 8,
+                padding: 24
+              }}>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: '#2c2c2c',
+                    marginBottom: 8,
+                    display: 'block',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                  }}>
+                    Language / 语言
+                  </label>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button
+                      style={{
+                        padding: '8px 16px',
+                        background: '#2c2c2c',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        fontSize: 14,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                      }}
+                    >
+                      English
+                    </button>
+                    <button
+                      style={{
+                        padding: '8px 16px',
+                        background: 'transparent',
+                        color: '#666',
+                        border: '1px solid #d0c4b0',
+                        borderRadius: 6,
+                        fontSize: 14,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                      }}
+                    >
+                      中文
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* About Content */}
+            <AboutView />
+          </div>
         </div>
       )}
       {/* @@@ Always render timeline to pre-load data and position scroll */}
@@ -2338,20 +2429,6 @@ export default function App() {
           overflow: 'hidden'
         }}>
           <AnalysisView />
-        </div>
-      )}
-      {currentView === 'about' && (
-        <div style={{
-          position: 'fixed',
-          top: 48,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: '#f8f0e6',
-          display: 'flex',
-          overflow: 'hidden'
-        }}>
-          <AboutView />
         </div>
       )}
 

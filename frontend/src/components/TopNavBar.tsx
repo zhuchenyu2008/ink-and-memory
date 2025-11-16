@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
-  currentView: 'writing' | 'settings' | 'timeline' | 'analysis' | 'about';
-  onViewChange: (view: 'writing' | 'settings' | 'timeline' | 'analysis' | 'about') => void;
+  currentView: 'writing' | 'settings' | 'timeline' | 'analysis' | 'decks';
+  onViewChange: (view: 'writing' | 'settings' | 'timeline' | 'analysis' | 'decks') => void;
 }
 
 export default function LeftSidebar({ currentView, onViewChange }: Props) {
@@ -134,21 +134,21 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
         </button>
 
         <button
-          onClick={() => onViewChange('about')}
-          style={buttonStyle(currentView === 'about')}
-          title="About"
+          onClick={() => onViewChange('decks')}
+          style={buttonStyle(currentView === 'decks')}
+          title="Decks"
           onMouseEnter={e => {
-            if (currentView !== 'about') {
+            if (currentView !== 'decks') {
               e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
             }
           }}
           onMouseLeave={e => {
-            if (currentView !== 'about') {
+            if (currentView !== 'decks') {
               e.currentTarget.style.background = 'transparent';
             }
           }}
         >
-          About
+          Decks
         </button>
       </div>
 

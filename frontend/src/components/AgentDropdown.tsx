@@ -1,5 +1,5 @@
 import React from 'react';
-import type { VoiceConfig } from '../types/voice';
+import type { VoiceConfig } from '../api/voiceApi';
 import {
   FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye,
   FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass

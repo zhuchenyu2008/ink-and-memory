@@ -1,4 +1,4 @@
-import type { VoiceConfig, StateConfig } from '../types/voice';
+import type { VoiceConfig, StateConfig } from '../api/voiceApi';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
 // @@@ Default meta prompt: honest, pragmatic advice over role-playing fluff

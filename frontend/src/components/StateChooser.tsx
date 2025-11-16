@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { StateCube } from './StateCube';
-import type { StateConfig } from '../types/voice';
+import type { StateConfig } from '../api/voiceApi';
 
 interface Props {
   stateConfig: StateConfig;

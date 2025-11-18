@@ -146,6 +146,9 @@ def create_tables(db):
       enabled BOOLEAN DEFAULT 1,
       has_local_changes BOOLEAN DEFAULT 0,
       order_index INTEGER,
+      published BOOLEAN DEFAULT 0,
+      author_name TEXT,
+      install_count INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (parent_id) REFERENCES decks(id),
@@ -153,6 +156,20 @@ def create_tables(db):
     )
     """)
     db.execute("CREATE INDEX IF NOT EXISTS idx_decks_owner ON decks(owner_id)")
+
+    # @@@ Migration: Add publishing columns to existing decks table
+    try:
+        db.execute("ALTER TABLE decks ADD COLUMN published BOOLEAN DEFAULT 0")
+    except:
+        pass  # Column already exists
+    try:
+        db.execute("ALTER TABLE decks ADD COLUMN author_name TEXT")
+    except:
+        pass
+    try:
+        db.execute("ALTER TABLE decks ADD COLUMN install_count INTEGER DEFAULT 0")
+    except:
+        pass
 
     # @@@ Voices table - individual voice personas within decks
     db.execute("""
@@ -309,6 +326,78 @@ def get_user_decks(user_id: int):
         ORDER BY d.order_index, d.created_at
         """, (user_id,)).fetchall()
         return [dict(row) for row in rows]
+    finally:
+        db.close()
+
+def get_published_decks():
+    """
+    Get all published decks (community deck store).
+    Returns list of deck dicts with voice counts and author info.
+    """
+    db = get_db()
+    try:
+        rows = db.execute("""
+        SELECT d.*, COUNT(v.id) as voice_count, u.display_name as author_display_name
+        FROM decks d
+        LEFT JOIN voices v ON d.id = v.deck_id AND v.enabled = 1
+        LEFT JOIN users u ON d.owner_id = u.id
+        WHERE d.published = 1
+        GROUP BY d.id
+        ORDER BY d.install_count DESC, d.created_at DESC
+        """).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        db.close()
+
+def publish_deck(deck_id: str, user_id: int):
+    """
+    Publish a deck to community store.
+    @@@ Breaks parent chain - published deck becomes standalone
+    """
+    db = get_db()
+    try:
+        # Get user's display name for author_name
+        user = db.execute("SELECT display_name FROM users WHERE id = ?", (user_id,)).fetchone()
+        author_name = user['display_name'] if user and user['display_name'] else f"User {user_id}"
+
+        db.execute("""
+        UPDATE decks
+        SET published = 1,
+            author_name = ?,
+            parent_id = NULL
+        WHERE id = ? AND owner_id = ?
+        """, (author_name, deck_id, user_id))
+        db.commit()
+    finally:
+        db.close()
+
+def unpublish_deck(deck_id: str, user_id: int):
+    """
+    Unpublish a deck from community store.
+    """
+    db = get_db()
+    try:
+        db.execute("""
+        UPDATE decks
+        SET published = 0
+        WHERE id = ? AND owner_id = ?
+        """, (deck_id, user_id))
+        db.commit()
+    finally:
+        db.close()
+
+def increment_deck_install_count(deck_id: str):
+    """
+    Increment install counter when deck is forked from store.
+    """
+    db = get_db()
+    try:
+        db.execute("""
+        UPDATE decks
+        SET install_count = install_count + 1
+        WHERE id = ?
+        """, (deck_id,))
+        db.commit()
     finally:
         db.close()
 

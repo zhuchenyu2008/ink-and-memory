@@ -626,8 +626,12 @@ export async function markFirstLoginCompleted(): Promise<void> {
 /**
  * List all decks (includes system decks + user's own decks)
  */
-export async function listDecks(): Promise<Deck[]> {
-  const response = await fetch(`${API_BASE}/api/decks`, {
+export async function listDecks(published?: boolean): Promise<Deck[]> {
+  const url = published
+    ? `${API_BASE}/api/decks?published=true`
+    : `${API_BASE}/api/decks`;
+
+  const response = await fetch(url, {
     headers: getAuthHeaders()
   });
 
@@ -754,6 +758,24 @@ export async function syncDeck(deckId: string): Promise<{ success: boolean; sync
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Sync deck failed');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Publish/unpublish a deck to community store
+ * @@@ Warning: Publishing breaks parent_id chain (deck becomes standalone)
+ */
+export async function publishDeck(deckId: string): Promise<{ success: boolean; published: boolean }> {
+  const response = await fetch(`${API_BASE}/api/decks/${deckId}/publish`, {
+    method: 'POST',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Publish deck failed');
   }
 
   return await response.json();

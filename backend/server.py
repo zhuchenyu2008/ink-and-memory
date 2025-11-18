@@ -1328,10 +1328,15 @@ class VoiceForkRequest(BaseModel):
     target_deck_id: str
 
 @app.get("/api/decks")
-def list_decks(current_user: dict = Depends(get_current_user)):
-    """Get all decks visible to user (system + user's own)"""
-    user_id = current_user['user_id']
-    decks = database.get_user_decks(user_id)
+def list_decks(published: bool = False, current_user: dict = Depends(get_current_user)):
+    """Get decks - either user's own or published community decks"""
+    if published:
+        # Get all published decks (community store)
+        decks = database.get_published_decks()
+    else:
+        # Get user's own decks
+        user_id = current_user['user_id']
+        decks = database.get_user_decks(user_id)
     return {"decks": decks}
 
 @app.get("/api/decks/{deck_id}")
@@ -1384,13 +1389,38 @@ def delete_deck(deck_id: str, current_user: dict = Depends(get_current_user)):
 
 @app.post("/api/decks/{deck_id}/fork")
 def fork_deck(deck_id: str, current_user: dict = Depends(get_current_user)):
-    """Fork a deck (usually system deck) to create user's own copy"""
+    """Fork a deck (system or published community deck) to create user's own copy"""
     user_id = current_user['user_id']
     try:
         new_deck_id = database.fork_deck(user_id, deck_id)
+        # @@@ Increment install count if forking from published deck
+        database.increment_deck_install_count(deck_id)
         return {"deck_id": new_deck_id}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/api/decks/{deck_id}/publish")
+def publish_deck(deck_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Publish/unpublish a deck to community store.
+    @@@ Warning: Publishing breaks parent_id chain (deck becomes standalone)
+    """
+    user_id = current_user['user_id']
+    try:
+        # Check if deck is currently published
+        deck = database.get_deck_with_voices(user_id, deck_id)
+        if not deck:
+            raise HTTPException(status_code=404, detail="Deck not found or not owned by user")
+
+        # Toggle published status
+        if deck.get('published'):
+            database.unpublish_deck(deck_id, user_id)
+            return {"success": True, "published": False}
+        else:
+            database.publish_deck(deck_id, user_id)
+            return {"success": True, "published": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/decks/{deck_id}/sync")
 def sync_deck(deck_id: str, current_user: dict = Depends(get_current_user)):

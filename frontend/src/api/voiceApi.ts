@@ -60,6 +60,9 @@ export interface Deck {
   voices?: Voice[];
   created_at?: string;
   updated_at?: string;
+  published?: boolean;
+  author_name?: string;
+  install_count?: number;
 }
 
 // nginx proxies /ink-and-memory/api/* to backend (8765)

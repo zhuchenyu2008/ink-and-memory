@@ -11,7 +11,6 @@ import {
   createVoice,
   updateVoice,
   deleteVoice,
-  forkVoice,
   publishDeck,
   type Deck,
   type Voice
@@ -45,22 +44,6 @@ const iconMap = {
   wind: FaWind,
   fire: FaFire,
   compass: FaCompass,
-};
-
-// @@@ Icon labels for dropdown display
-const ICON_LABELS = {
-  'brain': '🧠 brain',
-  'lightbulb': '💡 lightbulb',
-  'masks': '🎭 masks',
-  'cloud': '☁️ cloud',
-  'shield': '🛡️ shield',
-  'compass': '🧭 compass',
-  'heart': '❤️ heart',
-  'fist': '✊ fist',
-  'fire': '🔥 fire',
-  'wind': '💨 wind',
-  'question': '❓ question',
-  'eye': '👁️ eye'
 };
 
 interface Props {
@@ -243,7 +226,7 @@ export default function DeckManager({ onUpdate }: Props) {
         color: 'blue'
       });
       await loadDecks(true);
-      setExpandedDecks(prev => new Set([...prev, newDeck.id]));
+      setExpandedDecks(prev => new Set([...prev, newDeck.deck_id]));
       onUpdate?.();
     } catch (err: any) {
       alert(`Failed to create deck: ${err.message}`);
@@ -273,13 +256,13 @@ export default function DeckManager({ onUpdate }: Props) {
 
   async function handlePublishClick(deck: Deck) {
     if (deck.published) {
-      handlePublishToggle(deck.id, false);
+      handlePublishToggle(deck.id);
     } else {
       setPublishWarning(deck.id);
     }
   }
 
-  async function handlePublishToggle(deckId: string, shouldPublish: boolean) {
+  async function handlePublishToggle(deckId: string) {
     try {
       const result = await publishDeck(deckId);
       alert(result.published ? '✅ Deck published to community!' : '✅ Deck unpublished');
@@ -332,7 +315,7 @@ export default function DeckManager({ onUpdate }: Props) {
       }}>
         <div style={{ fontSize: 18, color: '#e74c3c' }}>❌ {error}</div>
         <button
-          onClick={loadDecks}
+          onClick={() => loadDecks()}
           style={{
             padding: '8px 16px',
             background: '#2c2c2c',
@@ -1212,7 +1195,7 @@ export default function DeckManager({ onUpdate }: Props) {
                 Cancel
               </button>
               <button
-                onClick={() => handlePublishToggle(publishWarning, true)}
+                onClick={() => handlePublishToggle(publishWarning)}
                 style={{
                   padding: '8px 16px',
                   background: '#9b59b6',

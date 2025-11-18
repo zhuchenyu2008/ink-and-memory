@@ -1,4 +1,5 @@
 # Python
+backup/
 backend/.venv/
 backend/models.json
 backend/.polycache/

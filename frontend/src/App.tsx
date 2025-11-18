@@ -12,7 +12,6 @@ import {
   FaAlignRight
 } from 'react-icons/fa';
 import TopNavBar from './components/TopNavBar';
-import VoiceSettings from './components/VoiceSettings';
 import DeckManager from './components/DeckManager';
 import CalendarPopup from './components/CalendarPopup';
 import { saveEntryToToday, type CalendarEntry } from './utils/calendarStorage';
@@ -22,8 +21,8 @@ import AboutView from './components/AboutView';
 import AgentDropdown from './components/AgentDropdown';
 import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
-import type { VoiceConfig, StateConfig } from './api/voiceApi';
-import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
+import type { VoiceConfig } from './api/voiceApi';
+import { getVoices, getMetaPrompt, getStateConfig, saveMetaPrompt } from './utils/voiceStorage';
 import { getDefaultVoices, chatWithVoice, importLocalData, getSuggestion, loadVoicesFromDecks, type VoiceInspiration } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
 import { CommentGroupCard } from './components/CommentCard';
@@ -251,9 +250,6 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'decks'>('writing');
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
-  const [metaPrompt, setMetaPrompt] = useState<string>('');
-  const [loadedStateConfig, setLoadedStateConfig] = useState<StateConfig | null>(null);
-  const [defaultVoiceConfigs, setDefaultVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
 
   const engineRef = useRef<EditorEngine | null>(null);
   const [state, setState] = useState<EditorState | null>(null);
@@ -386,7 +382,6 @@ export default function App() {
           color: v.color
         };
       }
-      setDefaultVoiceConfigs(converted);
 
       // @@@ Try loading from deck system first, then localStorage, then defaults
       const deckVoices = await loadVoicesFromDecks();
@@ -554,10 +549,10 @@ export default function App() {
               setVoiceConfigs(prefs.voice_configs);
             }
             if (prefs.meta_prompt) {
-              setMetaPrompt(prefs.meta_prompt);
+              saveMetaPrompt(prefs.meta_prompt);
             }
             if (prefs.state_config) {
-              setLoadedStateConfig(prefs.state_config);
+              setStateConfig(prefs.state_config);
             }
 
             // @@@ Load selectedState with daily reset check for authenticated users
@@ -1243,34 +1238,6 @@ export default function App() {
     } else {
       localStorage.setItem(STORAGE_KEYS.SELECTED_STATE, stateId);
       localStorage.setItem('selected-state-date', today);
-    }
-  }, [isAuthenticated]);
-
-  const handleVoiceConfigsSave = useCallback(async (data: {
-    voices: Record<string, VoiceConfig>;
-    metaPrompt: string;
-    stateConfig: StateConfig;
-  }) => {
-    console.log('App: handleVoiceConfigsSave called, isAuthenticated:', isAuthenticated);
-    setVoiceConfigs(data.voices);
-
-    // @@@ Save to database if authenticated
-    if (isAuthenticated) {
-      try {
-        console.log('App: Saving preferences to database...');
-        const { savePreferences } = await import('./api/voiceApi');
-        await savePreferences({
-          voice_configs: data.voices,
-          meta_prompt: data.metaPrompt,
-          state_config: data.stateConfig
-        });
-        console.log('App: Preferences saved to database successfully');
-      } catch (error) {
-        console.error('App: Failed to save preferences to database:', error);
-        throw error; // Propagate error to show alert
-      }
-    } else {
-      console.log('App: Guest mode, skipping database save');
     }
   }, [isAuthenticated]);
 

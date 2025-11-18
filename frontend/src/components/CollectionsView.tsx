@@ -146,7 +146,7 @@ function generateTimelineDays(): TimelineDay[] {
 
 // @@@ Helper function for interesting placeholders
 function getPlaceholderText(daysOffset: number): string {
-  if (daysOffset === 0) return 'Click to generate';
+  if (daysOffset === 0) return 'Generates automatically overnight';
 
   const placeholders: Record<string, string> = {
     '-7': 'taste buds renew every 10 days',
@@ -635,9 +635,8 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                 onClick={() => {
                   if (dayData?.picture) {
                     handleImageClick(dayData.picture);
-                  } else if (day.isToday && !isGenerating) {
-                    handleGenerateForDate(day.date);
                   }
+                  // @@@ Removed manual generation for today - now automatic only
                 }}
                 style={{
                   display: 'flex',
@@ -647,12 +646,12 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                   border: '1px solid #d0c4b0',
                   borderRadius: '8px',
                   padding: '1rem',
-                  cursor: (dayData?.picture || day.isToday) && !isGenerating ? 'pointer' : 'default',
+                  cursor: dayData?.picture && !isGenerating ? 'pointer' : 'default',
                   transition: 'transform 0.2s, box-shadow 0.2s',
                   opacity: day.isPast && !hasData ? 0.4 : 1
                 }}
                 onMouseEnter={e => {
-                  if ((dayData?.picture || day.isToday) && !isGenerating) {
+                  if (dayData?.picture && !isGenerating) {
                     e.currentTarget.style.transform = 'translateX(8px)';
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
                   }
@@ -746,9 +745,11 @@ function TimelinePage({ isVisible, voiceConfigs }: { isVisible: boolean; voiceCo
                   <div style={{
                     fontSize: '13px',
                     color: '#888',
-                    fontStyle: textByDate.get(day.date) ? 'normal' : 'italic'
+                    fontStyle: (day.isToday && !dayData?.picture) || (!textByDate.get(day.date) && !dayData?.comments?.length) ? 'italic' : 'normal'
                   }}>
                     {isGenerating ? 'Generating...' :
+                     day.isToday && !dayData?.picture ?
+                       getPlaceholderText(day.daysOffset) :
                      textByDate.get(day.date) ?
                        getTextPreview(textByDate.get(day.date)!) :
                      dayData?.comments?.length ?

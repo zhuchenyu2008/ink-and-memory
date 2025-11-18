@@ -561,15 +561,22 @@ def auto_fork_system_decks(user_id: int):
         db.close()
 
     # Fork each deck (each fork opens its own connection)
+    # @@@ Only enable introspection deck by default
     for deck_id in deck_ids:
-        fork_deck(user_id, deck_id)
+        should_enable = (deck_id == 'introspection_deck')
+        fork_deck(user_id, deck_id, enabled=should_enable)
 
     print(f"✅ Auto-forked {len(deck_ids)} system decks for user {user_id}")
 
-def fork_deck(user_id: int, deck_id: str) -> str:
+def fork_deck(user_id: int, deck_id: str, enabled: bool = True) -> str:
     """
     Fork a deck to create user's own copy.
     Copies deck + all voices. Returns new deck_id.
+
+    Args:
+        user_id: The user who is forking the deck
+        deck_id: ID of the deck to fork
+        enabled: Whether the forked deck should be enabled (default: True)
     """
     import uuid
 
@@ -587,7 +594,7 @@ def fork_deck(user_id: int, deck_id: str) -> str:
         db.execute("""
         INSERT INTO decks (id, name, name_zh, name_en, description, description_zh, description_en,
                           icon, color, is_system, parent_id, owner_id, enabled, has_local_changes, order_index)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1, 0, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?)
         """, (new_deck_id,
               source_deck['name'],
               source_deck['name_zh'],
@@ -599,6 +606,7 @@ def fork_deck(user_id: int, deck_id: str) -> str:
               source_deck['color'],
               deck_id,  # parent_id tracks fork source
               user_id,
+              1 if enabled else 0,  # @@@ enabled parameter
               source_deck['order_index']))
 
         # Copy all voices

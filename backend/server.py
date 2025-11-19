@@ -1169,6 +1169,22 @@ def get_picture_full(
 
     return {"image_base64": full_image}
 
+
+@app.get("/api/friends/{friend_id}/pictures/{date}/full")
+def get_friend_picture_full_endpoint(
+    friend_id: int,
+    date: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get full resolution image for a friend's specific date (only if users are friends)."""
+    user_id = current_user['user_id']
+    full_image = database.get_friend_picture_full(user_id, friend_id, date)
+
+    if not full_image:
+        raise HTTPException(status_code=404, detail="Picture not found or not accessible")
+
+    return {"image_base64": full_image}
+
 @app.post("/api/pictures")
 def save_picture(
     request: dict,
@@ -1634,6 +1650,7 @@ if __name__ == "__main__":
     print("    DELETE /api/sessions/{id} - Delete session")
     print("    POST /api/pictures        - Save daily picture")
     print("    GET  /api/pictures        - List pictures")
+    print("    GET  /api/pictures/{date}/full - Get full picture by date")
     print("    GET  /api/preferences     - Get user preferences")
     print("    POST /api/preferences     - Save preferences")
     print("    GET  /api/reports         - Get analysis reports")
@@ -1660,6 +1677,7 @@ if __name__ == "__main__":
     print("    GET  /api/friends                 - Get friends list")
     print("    DELETE /api/friends/{id}          - Remove friend")
     print("    GET  /api/friends/{id}/timeline   - Get friend's timeline")
+    print("    GET  /api/friends/{id}/pictures/{date}/full - Get friend's full picture")
     print("\n  PolyCLI (AI Functions):")
     print("    /polycli                  - Control panel UI")
     print("    /polycli/api/trigger-sync - Direct sync API")

@@ -125,7 +125,30 @@ const resources = {
         today: 'Today',
         generating: 'Generating...',
         entryCount_one: '{{count}} entry',
-        entryCount_other: '{{count}} entries'
+        entryCount_other: '{{count}} entries',
+        friendSelector: {
+          label: 'View Timeline',
+          placeholder: 'Choose a friend',
+          none: 'No friend selected',
+          loading: 'Loading friends...',
+          error: 'Could not load friends',
+          button: 'Timeline settings',
+          summarySolo: 'Personal timeline only',
+          summaryWithFriend: 'Comparing with {{name}}',
+          searchPlaceholder: 'Search friends',
+          noFriends: 'You have no friends yet.',
+          noMatches: 'No matches found',
+          close: 'Close',
+          personal: 'You',
+          more: 'More'
+        },
+        friendTimeline: {
+          loading: 'Loading friend timeline...',
+          empty: 'This friend has no entries yet.',
+          error: 'Unable to load friend timeline.',
+          readOnly: "Friend reflections open in read-only mode. You're just viewing their day.",
+          readOnlyShort: 'Friend timeline preview'
+        }
       },
       timelinePlaceholders: {
         today: 'Generates automatically overnight',
@@ -310,7 +333,30 @@ const resources = {
         today: '今天',
         generating: '生成中...',
         entryCount_one: '{{count}} 条记录',
-        entryCount_other: '{{count}} 条记录'
+        entryCount_other: '{{count}} 条记录',
+        friendSelector: {
+          label: '查看时间线',
+          placeholder: '选择好友',
+          none: '不查看好友',
+          loading: '正在加载好友...',
+          error: '无法加载好友列表',
+          button: '时间线设置',
+          summarySolo: '当前仅显示个人时间线',
+          summaryWithFriend: '正在与 {{name}} 的时间线对照',
+          searchPlaceholder: '搜索好友',
+          noFriends: '你还没有好友。',
+          noMatches: '没有符合条件的好友',
+          close: '关闭',
+          personal: '仅自己',
+          more: '更多'
+        },
+        friendTimeline: {
+          loading: '正在加载好友时间线...',
+          empty: '这位好友最近没有记录。',
+          error: '无法加载好友的时间线。',
+          readOnly: '好友的总结仅供查看，无法互动。',
+          readOnlyShort: '好友时间线预览'
+        }
       },
       timelinePlaceholders: {
         today: '夜里自动生成你的时间线',

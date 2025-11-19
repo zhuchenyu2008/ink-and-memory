@@ -22,6 +22,8 @@ export const STORAGE_KEYS = {
   // Calendar & Pictures
   CALENDAR_ENTRIES: 'calendarEntries',
   DAILY_PICTURES: 'daily-pictures',
+  SELECTED_FRIEND: 'ink-selected-friend',
+  RECENT_FRIENDS: 'ink-recent-friends',
 
   // Analysis
   ANALYSIS_REPORTS: 'analysisReports'

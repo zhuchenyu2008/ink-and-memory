@@ -1257,6 +1257,36 @@ def get_daily_picture_full(user_id: int, date: str):
     finally:
         db.close()
 
+
+def get_friend_picture_full(user_id: int, friend_id: int, date: str):
+    """Get full resolution image for a friend's specific date if users are friends."""
+    db = get_db()
+    try:
+        friendship = db.execute("""
+        SELECT id FROM friendships
+        WHERE status = 'accepted' AND (
+          (user_id = ? AND friend_id = ?) OR
+          (user_id = ? AND friend_id = ?)
+        )
+        """, (user_id, friend_id, friend_id, user_id)).fetchone()
+
+        if not friendship:
+            return None
+
+        row = db.execute("""
+        SELECT image_base64
+        FROM daily_pictures
+        WHERE user_id = ? AND date = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+        """, (friend_id, date)).fetchone()
+
+        if row:
+            return row['image_base64']
+        return None
+    finally:
+        db.close()
+
 # ========== User Preferences ==========
 
 def save_preferences(user_id: int, voice_configs: dict = None, meta_prompt: str = None,

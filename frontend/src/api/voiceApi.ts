@@ -1085,3 +1085,20 @@ export async function getFriendTimeline(friendId: number, limit: number = 30): P
   const data = await response.json();
   return data.pictures;
 }
+
+/**
+ * Get friend's full-resolution picture for a specific date
+ */
+export async function getFriendPictureFull(friendId: number, date: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/api/friends/${friendId}/pictures/${date}/full`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Get friend picture failed');
+  }
+
+  const data = await response.json();
+  return data.image_base64;
+}

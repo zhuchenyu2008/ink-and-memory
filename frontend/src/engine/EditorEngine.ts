@@ -155,6 +155,12 @@ export class EditorEngine {
   private applyTextUpdate() {
     const combinedText = this.getCombinedText();
 
+    // @@@ Auto-reset when editor is cleared (no widgets + empty text cells)
+    if (this.shouldResetEditorState(combinedText)) {
+      this.resetEditorToBlank();
+      return;
+    }
+
     // Compute new weight entry
     const weight = computeWeight(combinedText);
     const lastEntry = this.state.weightPath[this.state.weightPath.length - 1];
@@ -198,6 +204,40 @@ export class EditorEngine {
       .filter(c => c.type === 'text')
       .map(c => (c as TextCell).content)
       .join('');
+  }
+
+  // @@@ Detect when all text cells are empty and no other cells remain
+  private shouldResetEditorState(combinedText: string): boolean {
+    const hasNonTextCells = this.state.cells.some(cell => cell.type !== 'text');
+    if (hasNonTextCells) {
+      return false;
+    }
+
+    return combinedText.trim().length === 0;
+  }
+
+  // @@@ Restore editor to pristine state while preserving session metadata
+  private resetEditorToBlank() {
+    const { sessionId, currentEntryId, selectedState, createdAt } = this.state;
+
+    this.state = {
+      cells: [{ id: generateId(), type: 'text', content: '' }],
+      commentors: [],
+      tasks: [],
+      weightPath: [],
+      overlappedPhrases: [],
+      sessionId,
+      currentEntryId,
+      selectedState,
+      createdAt
+    };
+
+    this.usedEnergy = 0;
+    this.commentorWaitlist = [];
+    this.sentCache.clear();
+    this.isRequesting = false;
+
+    this.notifyChange();
   }
 
 

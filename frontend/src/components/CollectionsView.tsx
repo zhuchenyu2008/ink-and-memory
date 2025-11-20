@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Commentor } from '../engine/EditorEngine';
 import { findNormalizedPhrase } from '../utils/textNormalize';
@@ -28,7 +28,14 @@ interface TimelineEntryData {
   comments: Commentor[];
 }
 
-export default function CollectionsView({ isVisible, voiceConfigs }: { isVisible: boolean; voiceConfigs: Record<string, any> }) {
+interface CollectionsViewProps {
+  isVisible: boolean;
+  voiceConfigs: Record<string, any>;
+  friendToSelect?: number | null;
+  onFriendSelectionHandled?: () => void;
+}
+
+export default function CollectionsView({ isVisible, voiceConfigs, friendToSelect, onFriendSelectionHandled }: CollectionsViewProps) {
   const { i18n } = useTranslation();
   const dateLocale = getDateLocale(i18n.language);
   return (
@@ -40,7 +47,13 @@ export default function CollectionsView({ isVisible, voiceConfigs }: { isVisible
       background: '#f8f0e6',
       overflow: 'hidden'
     }}>
-      <TimelinePage isVisible={isVisible} voiceConfigs={voiceConfigs} dateLocale={dateLocale} />
+      <TimelinePage
+        isVisible={isVisible}
+        voiceConfigs={voiceConfigs}
+        dateLocale={dateLocale}
+        friendToSelect={friendToSelect}
+        onFriendSelectionHandled={onFriendSelectionHandled}
+      />
     </div>
   );
 }
@@ -429,7 +442,15 @@ const getInitialLetter = (name?: string, fallback: string = '?') => {
   return first || fallback;
 };
 
-function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: boolean; voiceConfigs: Record<string, any>; dateLocale: string }) {
+interface TimelinePageProps {
+  isVisible: boolean;
+  voiceConfigs: Record<string, any>;
+  dateLocale: string;
+  friendToSelect?: number | null;
+  onFriendSelectionHandled?: () => void;
+}
+
+function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onFriendSelectionHandled }: TimelinePageProps) {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const [starredComments, setStarredComments] = useState<Commentor[]>([]);
@@ -465,12 +486,13 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
   const [isFriendPickerOpen, setIsFriendPickerOpen] = useState(false);
   const [friendSearchTerm, setFriendSearchTerm] = useState('');
   const [friendPictures, setFriendPictures] = useState<TimelinePicture[]>([]);
-  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [, setLoadingFriends] = useState(false);
   const [friendLoadError, setFriendLoadError] = useState<string | null>(null);
-  const [friendTimelineError, setFriendTimelineError] = useState<string | null>(null);
-  const [loadingFriendTimeline, setLoadingFriendTimeline] = useState(false);
+  const [, setFriendTimelineError] = useState<string | null>(null);
+  const [, setLoadingFriendTimeline] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const emptyTextMap = useMemo(() => new Map<string, string>(), []);
+  const allTimelineDays = useMemo(() => generateTimelineDays(), []);
   const filteredFriends = useMemo(() => {
     const term = friendSearchTerm.trim().toLowerCase();
     if (!term) return friends;
@@ -484,10 +506,14 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
       prev.filter(id => friends.some(friend => friend.friend_id === id))
     );
   }, [friends]);
-  const selectedFriend = useMemo(
-    () => friends.find(friend => friend.friend_id === selectedFriendId),
-    [friends, selectedFriendId]
-  );
+
+  // @@@ Reset friend selection when auth state changes (guests can't view friends)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSelectedFriendId(null);
+      localStorage.removeItem(STORAGE_KEYS.SELECTED_FRIEND);
+    }
+  }, [isAuthenticated]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEYS.RECENT_FRIENDS, JSON.stringify(recentFriendIds));
@@ -498,12 +524,26 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
     return map;
   }, [friends]);
   const orderedFriendIds = useMemo(() => {
-    const ids = recentFriendIds.filter(id => friendMap.has(id));
-    if (selectedFriendId && friendMap.has(selectedFriendId)) {
-      return [selectedFriendId, ...ids.filter(id => id !== selectedFriendId)].slice(0, MAX_RECENT_FRIENDS);
+    const recentValid = recentFriendIds.filter(id => friendMap.has(id));
+    const prioritized = selectedFriendId && friendMap.has(selectedFriendId)
+      ? [selectedFriendId, ...recentValid.filter(id => id !== selectedFriendId)]
+      : [...recentValid];
+
+    if (prioritized.length < MAX_RECENT_FRIENDS) {
+      for (const friend of friends) {
+        if (!friendMap.has(friend.friend_id)) continue;
+        if (!prioritized.includes(friend.friend_id)) {
+          prioritized.push(friend.friend_id);
+        }
+        if (prioritized.length >= MAX_RECENT_FRIENDS) {
+          break;
+        }
+      }
     }
-    return ids.slice(0, MAX_RECENT_FRIENDS);
-  }, [recentFriendIds, selectedFriendId, friendMap]);
+
+    return prioritized.slice(0, MAX_RECENT_FRIENDS);
+  }, [recentFriendIds, selectedFriendId, friendMap, friends]);
+  const selectedFriend = selectedFriendId ? friendMap.get(selectedFriendId) : null;
   const orderedRecentFriends = orderedFriendIds
     .map(id => friendMap.get(id))
     .filter((friend): friend is Friend => Boolean(friend));
@@ -757,26 +797,26 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
   // @@@ Set initial scroll position to show today's row at top
   // Use useLayoutEffect to position BEFORE browser paints (prevents flash)
   useLayoutEffect(() => {
-    // @@@ Only scroll when timeline is visible AND data has loaded
-    if (!isVisible || initialLoading) return;
+    if (!isVisible || initialLoading || !scrollContainerRef.current) return;
 
-    // Double RAF to ensure layout is complete
+    const container = scrollContainerRef.current;
+    const todayIndex = allTimelineDays.findIndex(day => day.isToday);
+    if (todayIndex === -1) return;
+
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          // Today is at index 7 (after 7 past days)
-          // Each row is roughly 98px (80px card + 1.5rem gap ~= 24px)
-          const todayIndex = 7;
-          const rowHeight = 98; // Approximate height of row + gap
-          const topPadding = 48; // 3rem top padding
-
-          // Scroll to today's row
-          const scrollTop = topPadding + (todayIndex * rowHeight);
-          scrollContainerRef.current.scrollTop = scrollTop;
+        const rows = container.querySelectorAll('[data-timeline-row]');
+        const todayRow = rows[todayIndex] as HTMLElement | undefined;
+        if (todayRow) {
+          const containerRect = container.getBoundingClientRect();
+          const todayRect = todayRow.getBoundingClientRect();
+          const offset = todayRect.top - containerRect.top;
+          const centerAdjustment = (container.clientHeight / 2) - (todayRect.height / 2);
+          container.scrollTop += offset - centerAdjustment;
         }
       });
     });
-  }, [isVisible, initialLoading]);
+  }, [isVisible, initialLoading, allTimelineDays]);
 
   // @@@ Reload comments for a specific date from backend
   const reloadCommentsForDate = async (dateStr: string) => {
@@ -865,7 +905,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
     }
   };
 
-  const handleFriendSelection = (friendId: number | null) => {
+  const handleFriendSelection = useCallback((friendId: number | null) => {
     setSelectedFriendId(friendId);
     if (typeof window !== 'undefined') {
       if (friendId) {
@@ -882,7 +922,21 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
     }
     setFriendSearchTerm('');
     setIsFriendPickerOpen(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (friendToSelect === undefined || friendToSelect === null) {
+      return;
+    }
+
+    if (friendToSelect === selectedFriendId) {
+      onFriendSelectionHandled?.();
+      return;
+    }
+
+    handleFriendSelection(friendToSelect);
+    onFriendSelectionHandled?.();
+  }, [friendToSelect, selectedFriendId, handleFriendSelection, onFriendSelectionHandled]);
 
   const handleGenerateForDate = async (dateStr: string) => {
     // @@@ Block image generation for guests
@@ -933,9 +987,6 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
     return null;
   }
 
-  // @@@ Generate all timeline days using helper function (always show timeline structure)
-  const allTimelineDays = generateTimelineDays();
-
   return (
     <div
       ref={scrollContainerRef}
@@ -952,7 +1003,8 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
       <div style={{
         position: 'fixed',
         right: '1rem',
-        top: '160px',
+        top: '50%',
+        transform: 'translateY(-50%)',
         display: 'flex',
         flexDirection: 'column',
         gap: '0.4rem',
@@ -1021,6 +1073,70 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
           …
         </button>
       </div>
+
+      {!selectedFriendId && !isFriendPickerOpen && (
+        <div style={{
+          position: 'fixed',
+          right: '6.5rem',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: '260px',
+          borderRadius: '16px',
+          border: '1px solid #d0c4b0',
+          background: '#fffefb',
+          padding: '1.5rem',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+          zIndex: 3
+        }}>
+          <div style={{
+            fontSize: '15px',
+            fontWeight: 600,
+            color: '#3d342a',
+            marginBottom: '0.75rem'
+          }}>
+            {t('timeline.friendSelector.selfOnlyTitle') || 'Your private timeline'}
+          </div>
+          <div style={{
+            fontSize: '13px',
+            color: '#5c5145',
+            lineHeight: 1.5
+          }}>
+            {t('timeline.friendSelector.selfOnlyHint') || 'Pick a friend from the badges on the right to compare timelines side by side.'}
+          </div>
+        </div>
+      )}
+
+      {selectedFriendId && !isFriendPickerOpen && friendPictures.length === 0 && (
+        <div style={{
+          position: 'fixed',
+          right: '6.5rem',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: '260px',
+          borderRadius: '16px',
+          border: '1px solid #d0c4b0',
+          background: '#fffefb',
+          padding: '1.5rem',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+          zIndex: 3
+        }}>
+          <div style={{
+            fontSize: '15px',
+            fontWeight: 600,
+            color: '#3d342a',
+            marginBottom: '0.75rem'
+          }}>
+            {t('timeline.friendSelector.friendEmptyTitle') || 'No friend timeline yet'}
+          </div>
+          <div style={{
+            fontSize: '13px',
+            color: '#5c5145',
+            lineHeight: 1.5
+          }}>
+            {t('timeline.friendSelector.friendEmptyHint', { name: selectedFriend?.friend_name || '' }) || 'They have not shared anything for these days yet.'}
+          </div>
+        </div>
+      )}
 
       {isFriendPickerOpen && (
         <div
@@ -1093,12 +1209,14 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
                 onClick={() => handleFriendSelection(null)}
                 style={{
                   flex: 1,
-                  border: '1px solid #c7b9a4',
-                  background: '#f8f0e6',
+                  border: selectedFriendId === null ? '1px solid #2c2c2c' : '1px solid #c7b9a4',
+                  background: selectedFriendId === null ? '#f0e8de' : '#fff',
                   borderRadius: '8px',
                   padding: '0.6rem 0.75rem',
                   fontSize: '13px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  color: '#2c2c2c',
+                  fontWeight: 600
                 }}
               >
                 {t('timeline.friendSelector.none')}
@@ -1165,6 +1283,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale }: { isVisible: bool
 
           return (
             <div
+              data-timeline-row
               key={day.date}
               style={{
                 position: 'relative',

@@ -248,8 +248,9 @@ export default function App() {
     }
   }, [currentLanguage, i18n]);
 
-  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'decks'>('writing');
+  const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'decks' | 'friends'>('writing');
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
+  const [timelineFriendToSelect, setTimelineFriendToSelect] = useState<number | null>(null);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
 
   const engineRef = useRef<EditorEngine | null>(null);
@@ -637,6 +638,35 @@ export default function App() {
       });
     }
   }, [state, composingCells]);
+
+  // @@@ Keep focus on the lone blank text cell (after resets / clears)
+  useEffect(() => {
+    if (!state) return;
+
+    const textCells = state.cells.filter(c => c.type === 'text') as TextCell[];
+    if (textCells.length !== 1) return;
+
+    const firstCell = textCells[0];
+    if (firstCell.content.trim().length > 0) return;
+
+    const focusEditor = () => {
+      const textarea = textareaRefs.current.get(firstCell.id);
+      if (textarea && document.activeElement !== textarea) {
+        textarea.focus();
+        textarea.selectionStart = 0;
+        textarea.selectionEnd = 0;
+      }
+    };
+
+    const textarea = textareaRefs.current.get(firstCell.id);
+    if (textarea) {
+      focusEditor();
+      return;
+    }
+
+    const timer = window.setTimeout(focusEditor, 0);
+    return () => window.clearTimeout(timer);
+  }, [state, refsReady]);
 
   // @@@ Auto-save to database for authenticated users
   useEffect(() => {
@@ -1210,6 +1240,15 @@ export default function App() {
 
       setShowCalendarPopup(false);
     }
+  }, []);
+
+  const handleViewFriendTimeline = useCallback((friendId: number, _friendName?: string) => {
+    setTimelineFriendToSelect(friendId);
+    setCurrentView('timeline');
+  }, []);
+
+  const handleFriendSelectionHandled = useCallback(() => {
+    setTimelineFriendToSelect(null);
   }, []);
 
   const handleStateChoose = useCallback(async (stateId: string) => {
@@ -2412,7 +2451,12 @@ export default function App() {
         display: currentView === 'timeline' ? 'flex' : 'none',
         overflow: 'hidden'
       }}>
-        <CollectionsView isVisible={currentView === 'timeline'} voiceConfigs={voiceConfigs} />
+        <CollectionsView
+          isVisible={currentView === 'timeline'}
+          voiceConfigs={voiceConfigs}
+          friendToSelect={timelineFriendToSelect}
+          onFriendSelectionHandled={handleFriendSelectionHandled}
+        />
       </div>
       {currentView === 'analysis' && (
         <div style={{
@@ -2440,7 +2484,10 @@ export default function App() {
           display: 'flex',
           overflow: 'hidden'
         }}>
-          <FriendsView isVisible={currentView === 'friends'} />
+          <FriendsView
+            isVisible={currentView === 'friends'}
+            onViewFriendTimeline={handleViewFriendTimeline}
+          />
         </div>
       )}
 
@@ -2542,6 +2589,7 @@ export default function App() {
       {showCalendarPopup && (
         <CalendarPopup
           onLoadEntry={handleLoadEntry}
+          currentEntryId={state.currentEntryId}
           onClose={() => setShowCalendarPopup(false)}
         />
       )}

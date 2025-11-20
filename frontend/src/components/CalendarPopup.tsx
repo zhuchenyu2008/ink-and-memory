@@ -13,9 +13,10 @@ import { useAuth } from '../contexts/AuthContext';
 interface Props {
   onLoadEntry: (entry: CalendarEntry) => void;
   onClose: () => void;
+  currentEntryId?: string | null;
 }
 
-export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
+export default function CalendarPopup({ onLoadEntry, onClose, currentEntryId }: Props) {
   const { isAuthenticated } = useAuth();
   const { t, i18n } = useTranslation();
   const dateLocale = getDateLocale(i18n.language);
@@ -402,6 +403,7 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                   overflow: 'auto'
                 }}>
                   {selectedEntries.map((entry) => {
+                    const isCurrentEntry = currentEntryId === entry.id;
                     const time = new Date(entry.timestamp).toLocaleTimeString(dateLocale, {
                       hour: '2-digit',
                       minute: '2-digit'
@@ -411,14 +413,15 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                       <div
                         key={entry.id}
                         style={{
-                          border: '1px solid #d0c4b0',
+                          border: isCurrentEntry ? '2px solid #4CAF50' : '1px solid #d0c4b0',
                           borderRadius: '6px',
                           padding: '12px',
-                          background: '#fff',
+                          background: isCurrentEntry ? '#f0fff4' : '#fff',
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          gap: '12px'
+                          gap: '12px',
+                          boxShadow: isCurrentEntry ? '0 0 0 1px rgba(76, 175, 80, 0.1)' : 'none'
                         }}
                       >
                         <button
@@ -435,11 +438,32 @@ export default function CalendarPopup({ onLoadEntry, onClose }: Props) {
                           }}
                         >
                           <div style={{
-                            fontSize: '12px',
-                            color: '#999',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
                             marginBottom: '4px'
                           }}>
-                            {time}
+                            <div style={{
+                              fontSize: '12px',
+                              color: '#999'
+                            }}>
+                              {time}
+                            </div>
+                            {isCurrentEntry && (
+                              <span style={{
+                                fontSize: '11px',
+                                letterSpacing: '0.05em',
+                                textTransform: 'uppercase',
+                                padding: '2px 6px',
+                                borderRadius: '999px',
+                                border: '1px solid #4CAF50',
+                                color: '#256029',
+                                background: '#e8f5e9',
+                                fontWeight: 600
+                              }}>
+                                {t('calendar.currentEntryLabel')}
+                              </span>
+                            )}
                           </div>
                           <div style={{
                             fontSize: '14px',

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -53,6 +53,9 @@ interface Props {
 
 export default function DeckManager({ onUpdate }: Props) {
   const { t } = useTranslation();
+  const spinnerKeyframes = useMemo(() => (
+    `@keyframes deck-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`
+  ), []);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [communityDecks, setCommunityDecks] = useState<Deck[]>([]);
   const [expandedDecks, setExpandedDecks] = useState<Set<string>>(new Set());
@@ -304,12 +307,33 @@ export default function DeckManager({ onUpdate }: Props) {
     return (
       <div style={{
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        height: '100vh',
+        width: '100%',
+        minHeight: '100vh',
         background: '#f8f0e6'
       }}>
-        <div style={{ fontSize: 18, color: '#666' }}>Loading decks...</div>
+        <style>{spinnerKeyframes}</style>
+        <div style={{
+          fontSize: 18,
+          color: '#666',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.75rem',
+          textAlign: 'center'
+        }}>
+          <span style={{
+            width: '18px',
+            height: '18px',
+            borderRadius: '50%',
+            border: '2px solid rgba(0,0,0,0.1)',
+            borderTopColor: '#666',
+            animation: 'deck-spin 0.9s linear infinite'
+          }} />
+          Loading decks…
+        </div>
       </div>
     );
   }

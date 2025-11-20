@@ -140,7 +140,11 @@ const resources = {
           noMatches: 'No matches found',
           close: 'Close',
           personal: 'You',
-          more: 'More'
+          more: 'More',
+          selfOnlyTitle: 'Just you today',
+          selfOnlyHint: 'Pick a friend badge on the right to pull in their timeline beside yours.',
+          friendEmptyTitle: 'No timeline yet',
+          friendEmptyHint: 'This friend has not shared anything for these recent days.'
         },
         friendTimeline: {
           loading: 'Loading friend timeline...',
@@ -170,6 +174,7 @@ const resources = {
         deleteConfirm: 'Delete this entry?',
         entriesLabel_one: '{{count}} entry',
         entriesLabel_other: '{{count}} entries',
+        currentEntryLabel: 'Current note',
         openButton: 'Open',
         deleteButton: 'Delete',
         close: 'Close',
@@ -348,7 +353,11 @@ const resources = {
           noMatches: '没有符合条件的好友',
           close: '关闭',
           personal: '仅自己',
-          more: '更多'
+          more: '更多',
+          selfOnlyTitle: '只有你在这里',
+          selfOnlyHint: '点右侧的好友圆标，就能把 TA 的时间线拉来并排浏览。',
+          friendEmptyTitle: '最近没有内容',
+          friendEmptyHint: '这位好友在最近几天都没有留下时间线。'
         },
         friendTimeline: {
           loading: '正在加载好友时间线...',
@@ -378,6 +387,7 @@ const resources = {
         deleteConfirm: '确定删除这篇记录？',
         entriesLabel_one: '{{count}} 篇',
         entriesLabel_other: '{{count}} 篇',
+        currentEntryLabel: '当前笔记',
         openButton: '打开',
         deleteButton: '删除',
         close: '关闭',

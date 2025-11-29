@@ -10,12 +10,13 @@ if hasattr(time, 'tzset'):
 
 import asyncio
 import httpx
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from polycli.orchestration.session_registry import session_def, get_registry
 from polycli.integrations.fastapi import mount_control_panel
 from polycli import PolyAgent
 from stateless_analyzer import analyze_stateless
+from speech_recognition import init_speech_recognition
 import config
 from proxy_config import get_image_api_proxies
 from typing import Optional
@@ -1622,6 +1623,13 @@ def get_friend_timeline(friend_id: int, limit: int = 30, current_user: dict = De
     if timeline is None:
         raise HTTPException(status_code=403, detail="Not friends or friend not found")
     return {"pictures": timeline}
+
+@app.websocket("/ws/speech-recognition")
+async def speech_recognition(websocket: WebSocket):
+    # TODO: find a way of authentication for websocket
+    await websocket.accept()
+    await init_speech_recognition(websocket)
+
 
 # @@@ Removed /api/analyze wrapper - frontend now calls /polycli/api/trigger-sync directly
 

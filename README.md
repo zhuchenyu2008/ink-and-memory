@@ -93,6 +93,7 @@ Runs at `http://localhost:5173`.
 ## Roadmap
 - **Per-user timeline scheduling** – Scheduler currently runs once per day using a single timezone; we now store `timezone` in preferences and will move to per-user cadence.
 - **Friend timezone awareness** – Friend timelines will eventually display which timezone their entries use once per-user scheduling lands.
+- **Visitor “shadow accounts”** – Reintroduce visitor mode by minting anonymous user records per browser session (UUID + JWT) so visitors hit the exact same backend paths with restricted quotas. No localStorage divergences.
 - **Open-source polish** – Document control-plane endpoints, linting, and seed data for new deployments.
 
 ---

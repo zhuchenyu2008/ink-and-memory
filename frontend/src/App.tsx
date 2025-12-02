@@ -47,15 +47,17 @@ function LeftToolbar({
   onToggleAlign,
   onShowCalendar,
   onSaveToday,
-  onStartTalking,
-  isAligned
+  onToggleTalking,
+  isAligned,
+  isTalking
 }: {
   onInsertAgent: () => void;
   onToggleAlign: () => void;
   onShowCalendar: () => void;
   onSaveToday: () => void;
-  onStartTalking: () => void;
+  onToggleTalking: () => void;
   isAligned: boolean;
+  isTalking: boolean;
 }) {
   return (
     <div style={{
@@ -192,14 +194,14 @@ function LeftToolbar({
 
       {/* Align button - last */}
       <button
-        onClick={onStartTalking}
+        onClick={onToggleTalking}
         title="Voice Input"
         style={{
           width: '36px',
           height: '36px',
           border: 'none',
           borderRadius: '4px',
-          backgroundColor: isAligned ? '#e3f2fd' : '#fff',
+          backgroundColor: isTalking ? '#e3f2fd' : '#fff',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -207,13 +209,13 @@ function LeftToolbar({
           transition: 'all 0.2s ease'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = isAligned ? '#bbdefb' : '#f0f0f0';
+          e.currentTarget.style.backgroundColor = isTalking ? '#bbdefb' : '#f0f0f0';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = isAligned ? '#e3f2fd' : '#fff';
+          e.currentTarget.style.backgroundColor = isTalking ? '#e3f2fd' : '#fff';
         }}
       >
-        <FaMicrophone size={18} color={isAligned ? '#1976d2' : '#333'} />
+        <FaMicrophone size={18} color={isTalking ? '#1976d2' : '#333'} />
       </button>
     </div>
   );
@@ -324,6 +326,15 @@ export default function App() {
 
   // @@@ Comment alignment state
   const [commentsAligned, setCommentsAligned] = useState(false);
+
+  // @@@ Voice input enabled
+  const [userTalking, setUserTalking] = useState(false);
+  const focusedTextarea = useRef<HTMLTextAreaElement | undefined>(null);
+  const focusedCell = useRef<TextCell | undefined>(null);
+  const lastUpdateTime = useRef<number>(0);
+  const voiceInputNewContent = useRef<string>('');
+
+  const stopTalking = useRef(() => {setUserTalking(false)});
 
   // @@@ Comment expansion state (for action toolbar + chat dropdown)
   const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
@@ -1440,7 +1451,173 @@ export default function App() {
     }
   }, [ensureStateForPersistence, getFirstLineFromState, isAuthenticated, saveSessionToDatabase]);
 
-  const handleStartTalking = useCallback(async () => {
+  useEffect(() => {
+    lastUpdateTime.current = performance.now();
+    if (userTalking) {
+      startTalking();
+    } else {
+      stopTalking.current();
+    }
+
+    async function startTalking() {
+      try {
+        let audioCtx: AudioContext;
+        let stream: MediaStream;
+        let processor: ScriptProcessorNode;
+        let source: MediaStreamAudioSourceNode;
+        let ws: WebSocket;
+        const targetSampleRate = 16000;
+
+        stopTalking.current = function () {
+          document.querySelector('.voice-input-modal')?.remove();
+          processor?.disconnect();
+          source?.disconnect();
+          audioCtx?.close();
+          stream?.getTracks().forEach(t => t.stop());
+          ws?.close();
+        }
+
+        if (!engineRef.current) {
+          throw new Error('engineRef.current is empty');
+        }
+        focusedCell.current = [...engineRef.current.getState().cells].reverse().find(c => c.type === 'text');
+        focusedTextarea.current = textareaRefs.current.get(focusedCell.current?.id ?? '');
+
+        if (!focusedTextarea.current || !focusedCell.current) {
+          throw new Error('Cannot find focused cell');
+        }
+
+        const currentContent = focusedCell.current.content;
+        const cursorPos = focusedTextarea.current.selectionEnd;
+        const contentBefore = currentContent.slice(0, cursorPos);
+        const contentAfter = currentContent.slice(cursorPos);
+
+        let sentences: Array<string> = [];
+        let sentenceId: number = -1;
+
+        function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
+          const buffer = new ArrayBuffer(float32Array.length * 2);
+          const view = new DataView(buffer);
+          let offset = 0;
+          for (let i = 0; i < float32Array.length; i++, offset += 2) {
+            let s = Math.max(-1, Math.min(1, float32Array[i]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+          }
+          return buffer;
+        }
+
+        function downsampleBuffer(buffer: Float32Array, inSampleRate: number, outSampleRate: number): Float32Array {
+          if (outSampleRate === inSampleRate) {
+            return buffer;
+          }
+          if (outSampleRate > inSampleRate) {
+            console.warn("downsampleBuffer: target sample rate is higher than input, returning original");
+            return buffer;
+          }
+          const sampleRateRatio = inSampleRate / outSampleRate;
+          const newLength = Math.round(buffer.length / sampleRateRatio);
+          const result = new Float32Array(newLength);
+          let offsetResult = 0;
+          let offsetBuffer = 0;
+          while (offsetResult < result.length) {
+            const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+            let accum = 0, count = 0;
+            for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+              accum += buffer[i];
+              count++;
+            }
+            result[offsetResult] = count ? accum / count : 0;
+            offsetResult++;
+            offsetBuffer = nextOffsetBuffer;
+          }
+          return result;
+        }
+
+        let voiceInputModal: HTMLDivElement = document.createElement('div');
+        voiceInputModal.className = 'voice-input-modal';
+        document.body.append(voiceInputModal);
+
+        ws = new WebSocket('ws://127.0.0.1:8765/ws/speech-recognition');
+        ws.binaryType = 'arraybuffer';
+        ws.onerror = (e) => {
+          console.error('WS err', e);
+        };
+        ws.onmessage = (evt) => {
+          let now = performance.now();
+          if (now - lastUpdateTime.current < 300) {
+            return;
+          }
+          lastUpdateTime.current = now;
+          try {
+            if (!engineRef.current || !focusedCell.current || !focusedTextarea.current) {
+              throw new Error('Lost focus');
+            }
+
+            const data = JSON.parse(evt.data);
+            let id = data.id;
+            if (id != sentenceId) {
+              sentenceId = id;
+              sentences.push('');
+            }
+            sentences[sentences.length - 1] = data.sentence;
+
+            voiceInputNewContent.current = contentBefore + sentences.join('') + contentAfter;
+            engineRef.current.updateTextCell(focusedCell.current.id, voiceInputNewContent.current);
+            // engineRef.current.updateTextCell(focusedCell.current.id, 'Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world ');
+
+            // Postpone setting height
+            setTimeout(() => {
+              if (!engineRef.current) {
+                return;
+              }
+              focusedCell.current = [...engineRef.current.getState().cells].reverse().find(c => c.type === 'text');
+              focusedTextarea.current = textareaRefs.current.get(focusedCell.current?.id ?? '');
+              if (focusedTextarea.current) {
+                focusedTextarea.current.style.height = `${focusedTextarea.current.scrollHeight}px`;
+              }
+            }, 100);
+          } catch (e) {
+            console.log('Non-JSON message from server:', evt.data);
+          }
+        };
+
+        let cb = () => {
+          if (performance.now() - lastUpdateTime.current > 10000) {
+            setUserTalking(false);
+          } else {
+            requestAnimationFrame(cb);
+          }
+        }
+        requestAnimationFrame(cb);
+
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioCtx = new window.AudioContext();
+        source = audioCtx.createMediaStreamSource(stream);
+
+        const inputSampleRate = audioCtx.sampleRate;
+
+        const bufferSize = 4096;
+        processor = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+
+        processor.onaudioprocess = (event) => {
+          const inputBuffer = event.inputBuffer.getChannelData(0);
+          const downsampled = downsampleBuffer(inputBuffer, inputSampleRate, targetSampleRate);
+          const pcm16ab = floatTo16BitPCM(downsampled);
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(pcm16ab);
+          }
+        };
+
+        source.connect(processor);
+        processor.connect(audioCtx.destination);
+      } catch (error) {
+        console.error('Voice input encountered an unexpected error:', error);
+        setUserTalking(false);
+      }
+    }
+  }, [userTalking]);
+
+  const handleToggleTalking = useCallback(async () => {
     if (!textareaRefs.current) return;
     if (!isAuthenticated) {
       const toast = document.createElement('div');
@@ -1467,189 +1644,7 @@ export default function App() {
       return;
     }
 
-    let voiceInputModal: HTMLDivElement = document.createElement('div');
-    voiceInputModal.className = 'voice-input-modal';
-    document.body.append(voiceInputModal);
-
-    let voiceInputContainer: HTMLDivElement = document.createElement('div');
-    voiceInputContainer.className = 'voice-input-container';
-    voiceInputModal.append(voiceInputContainer);
-
-    let voiceInputResult: HTMLParagraphElement = document.createElement('div');
-    voiceInputResult.className = 'voice-input-result';
-    voiceInputContainer.append(voiceInputResult);
-
-    let btnGroup: HTMLDivElement = document.createElement('div');
-    btnGroup.className = 'voice-input-button-group';
-    voiceInputContainer.append(btnGroup);
-
-    let startBtn: HTMLButtonElement = document.createElement('button');
-    startBtn.innerText = 'Start';
-
-    let stopBtn: HTMLButtonElement = document.createElement('button');
-    stopBtn.innerText = 'Pause';
-    stopBtn.disabled = true;
-
-    let applyBtn: HTMLButtonElement = document.createElement('button');
-    applyBtn.innerText = 'Apply';
-    applyBtn.disabled = true;
-
-    let cancelBtn: HTMLButtonElement = document.createElement('button');
-    cancelBtn.innerText = 'Cancel';
-
-    btnGroup.append(startBtn);
-    btnGroup.append(stopBtn);
-    btnGroup.append(applyBtn);
-    btnGroup.append(cancelBtn);
-
-    try {
-      let audioCtx: AudioContext;
-      let stream: MediaStream;
-      let processor: ScriptProcessorNode;
-      let source: MediaStreamAudioSourceNode;
-      let ws: WebSocket;
-      const targetSampleRate = 16000;
-
-      let sentences: Array<string> = [];
-      let sentenceId: number = -1;
-
-      function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
-        const buffer = new ArrayBuffer(float32Array.length * 2);
-        const view = new DataView(buffer);
-        let offset = 0;
-        for (let i = 0; i < float32Array.length; i++, offset += 2) {
-          let s = Math.max(-1, Math.min(1, float32Array[i]));
-          view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-        }
-        return buffer;
-      }
-
-      function downsampleBuffer(buffer: Float32Array, inSampleRate: number, outSampleRate: number): Float32Array {
-        if (outSampleRate === inSampleRate) {
-          return buffer;
-        }
-        if (outSampleRate > inSampleRate) {
-          console.warn("downsampleBuffer: target sample rate is higher than input, returning original");
-          return buffer;
-        }
-        const sampleRateRatio = inSampleRate / outSampleRate;
-        const newLength = Math.round(buffer.length / sampleRateRatio);
-        const result = new Float32Array(newLength);
-        let offsetResult = 0;
-        let offsetBuffer = 0;
-        while (offsetResult < result.length) {
-          const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
-          let accum = 0, count = 0;
-          for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
-            accum += buffer[i];
-            count++;
-          }
-          result[offsetResult] = count ? accum / count : 0;
-          offsetResult++;
-          offsetBuffer = nextOffsetBuffer;
-        }
-        return result;
-      }
-
-      async function start() {
-        startBtn.disabled = true;
-        stopBtn.disabled = false;
-        applyBtn.disabled = false;
-
-        ws = new WebSocket('ws://127.0.0.1:8765/ws/speech-recognition');
-        ws.binaryType = 'arraybuffer';
-        ws.onerror = (e) => {
-          console.error('WS err', e);
-        };
-        ws.onmessage = (evt) => {
-          try {
-            const data = JSON.parse(evt.data);
-            let id = data.id;
-            if (id != sentenceId) {
-              sentenceId = id;
-              sentences.push('');
-            }
-            sentences[sentences.length - 1] = data.sentence;
-            voiceInputResult.innerHTML = sentences.map(v => `<p>${v}</p>`).join('');
-          } catch (e) {
-            console.log('Non-JSON message from server:', evt.data);
-          }
-        };
-
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioCtx = new window.AudioContext();
-        source = audioCtx.createMediaStreamSource(stream);
-
-        const inputSampleRate = audioCtx.sampleRate;
-        console.log('input sample rate', inputSampleRate);
-
-        const bufferSize = 4096;
-        processor = audioCtx.createScriptProcessor(bufferSize, 1, 1);
-
-        processor.onaudioprocess = (event) => {
-          const inputBuffer = event.inputBuffer.getChannelData(0);
-          const downsampled = downsampleBuffer(inputBuffer, inputSampleRate, targetSampleRate);
-          const pcm16ab = floatTo16BitPCM(downsampled);
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(pcm16ab);
-          }
-        };
-
-        source.connect(processor);
-        processor.connect(audioCtx.destination);
-
-        startBtn.disabled = true;
-        stopBtn.disabled = false;
-      }
-
-      function stop() {
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-
-        processor?.disconnect();
-        source?.disconnect();
-        audioCtx?.close();
-        stream?.getTracks().forEach(t => t.stop());
-        ws?.close();
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-        sentenceId = -1;
-      }
-
-      function apply() {
-        stop();
-        voiceInputModal.remove();
-
-        if (!engineRef.current) return;
-        const lastTextCell = [...engineRef.current.getState().cells].reverse().find(c => c.type === 'text');
-        if (!lastTextCell) return;
-        const textarea = textareaRefs.current.get(lastTextCell.id);
-        if (!textarea) return;
-
-        const currentContent = (lastTextCell as TextCell).content;
-        const newContent = currentContent + sentences.join('');
-        engineRef.current.updateTextCell(lastTextCell.id, newContent);
-
-        // Postpone setting of textarea height
-        setTimeout(() => {
-          textarea.style.height = `${textarea.scrollHeight}px`;
-        }, 100);
-      }
-
-      function cancel() {
-        stop();
-        voiceInputModal.remove();
-      }
-
-      startBtn.addEventListener('click', start);
-      stopBtn.addEventListener('click', stop);
-      applyBtn.addEventListener('click', apply);
-      cancelBtn.addEventListener('click', cancel);
-    
-    } catch (error) {
-      console.error('Voice input encountered an unexpected error:', error);
-      voiceInputModal.remove();
-    }
+    setUserTalking(prev => !prev);
   }, [isAuthenticated]);
 
   const handleLoadEntry = useCallback((entry: CalendarEntry) => {
@@ -2348,8 +2343,9 @@ export default function App() {
                 onToggleAlign={handleToggleAlign}
                 onShowCalendar={() => setShowCalendarPopup(true)}
                 onSaveToday={handleSaveToday}
-                onStartTalking={handleStartTalking}
+                onToggleTalking={handleToggleTalking}
                 isAligned={commentsAligned}
+                isTalking={userTalking}
               />
             </div>
           )}
@@ -2503,6 +2499,7 @@ export default function App() {
                               }
                             }}
                             value={content}
+                            onFocus={() => focusedCell.current = cell}
                             onChange={(e) => handleTextChange(cell.id, e.target.value)}
                             onCompositionStart={() => handleCompositionStart(cell.id)}
                             onCompositionEnd={(e) => handleCompositionEnd(cell.id, e)}

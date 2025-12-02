@@ -27,6 +27,7 @@ import auth
 
 SUPPORTED_LANGUAGES = {"en", "zh"}
 DEFAULT_LANGUAGE = "en"
+BACKEND_VERSION = os.environ.get("BACKEND_VERSION", "unknown")
 
 
 def normalize_language_code(language: Optional[str]) -> str:
@@ -1832,6 +1833,7 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 60)
     print("🎭 Ink & Memory FastAPI Server")
+    print(f"🧾 Version: {BACKEND_VERSION}")
     print("=" * 60)
     print("\n📚 API Endpoints:")
     print("  Auth & User:")

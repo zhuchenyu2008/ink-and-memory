@@ -22,7 +22,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
-          npm run build
+          VITE_FRONTEND_VERSION=${GITHUB_SHA} npm run build
 
       - name: Deploy static assets
         uses: appleboy/scp-action@v0.1.7

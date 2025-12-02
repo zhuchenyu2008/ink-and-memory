@@ -778,6 +778,8 @@ app = FastAPI(
     version="2.0.0",
 )
 
+print(f"🧾 Backend version: {BACKEND_VERSION}")
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,

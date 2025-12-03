@@ -1,53 +1,92 @@
-# Ink & Memory · English | [中文](README.zh.md)
+# Ink & Memory: Your Mind, Mirrored
 
-Ink & Memory is a Disco Elysium–inspired journaling studio where inner voices respond to every sentence. It has grown into a complete daily writing workspace with auto-save, calendar and timeline review, friend timelines, and per-user timezone awareness. The entire experience works in both English and Chinese.
+<p align="center">
+  <img src="assets/writing-area.png" alt="Ink & Memory Writing Area" width="700"/>
+</p>
 
-![Writing area](assets/writing-area.png)
+**Ink & Memory** is a journaling studio inspired by the inner monologues of the video game *Disco Elysium*. It’s a space to write, reflect, and hear your own thoughts echoed back to you through a cast of distinct inner voices. As you type, a council of archetypes chimes in, offering perspective, guidance, and a touch of the absurd.
 
----
-
-## Who It’s For
-- University students and early-career folks under pressure who need a low-friction emotional outlet.
-- People who like journaling/handbook culture but find traditional daily entries too heavy.
-- Those who want to record life with less time/psychological cost.
-- Literature lovers and founders seeking sparks of inspiration.
+This is more than just a notebook. It's a daily writing companion that saves your work, organizes your thoughts, and helps you discover the patterns in your own thinking. It supports both English and Chinese, adapting to your language on the fly.
 
 ---
 
-## What You Can Do
+## Core Features
 
-- **Write in two languages** – The notebook, highlights, captions, and voice comments support both English and Chinese, switching automatically with your text.
-- **Hear your inner council** – Thirteen Disco-style voices comment live, each with its own highlight color, icon, and persona.
-- **Trust auto-save** – Manual “Save today” and the silent auto-save share the exact same logic, so every session is persisted with `editor_state.createdAt` and can be reopened from the calendar or timeline.
-- **Review your days** – Calendar and timeline use the same grouped session data, so captions, pictures, and timestamps always match. Clicking a day reloads that precise session.
-- **Compare with friends** – Pin a friend’s timeline to the right edge, complete with hint cards when they have no entries for a range of days.
-- **See your time** – All timestamps are stored in UTC but displayed in your local timezone. We also record your preferred timezone for future per-user scheduling.
+### The Writing Experience
+At the heart of Ink & Memory is a clean, minimalist writing environment. The editor is designed to be a distraction-free space for your thoughts. As you write, the system automatically saves your work, so you never have to worry about losing a single word.
+
+### The Inner Council
+As you write, a council of 16 inner voices will comment on your text, highlighting key phrases and offering their unique perspectives. These voices are inspired by a variety of archetypes, from the analytical "Unpacker" to the gentle "Holder". This feature is powered by a sophisticated AI system that analyzes your writing in real-time.
+
+<p align="center">
+  <img src="assets/demo-screenshot.png" alt="Ink & Memory Demo" width="700"/>
+</p>
+
+### The Timeline and Calendar
+Every writing session is automatically saved and organized into a timeline and a calendar. This allows you to easily look back at your past entries, see your progress, and rediscover old ideas.
+
+### Daily Image Generation
+Each day, the system automatically generates a unique image based on the content of your writing. This creates a beautiful and evocative visual representation of your thoughts and feelings over time.
+
+### Customizable Decks
+The 16 voices are organized into three "decks": the **Introspection Deck**, the **Scholar Deck**, and the **Philosophy Deck**. You can enable or disable decks to customize which voices are active, and you can even create your own decks with your own custom voices.
+
+### Friend Timelines
+You can add friends and view their timelines alongside your own. This feature is designed to foster a sense of connection and shared experience, allowing you to see what your friends are writing and thinking about.
 
 ---
 
 ## The Voices
 
-All thirteen Disco Elysium archetypes are included: Logic, Empathy, Inland Empire, Volition, Drama, Authority, Half Light, Shivers, Composure, Encyclopedia, Conceptualization, Suggestion, and Electrochemistry. Each persona keeps its own comment history, avoids duplicates, and responds in the language you are currently writing in.
+Ink & Memory features 16 distinct voices, organized into three decks. Each voice has its own unique personality and perspective.
+
+### The Introspection Deck
+This deck is focused on self-reflection and personal growth.
+
+| Icon | Name | Description |
+|---|---|---|
+| 🧠 | **The Unpacker** | An analyst who dissects complex situations into clear, understandable structures. |
+| ❤️ | **The Holder** | A gentle and supportive companion who validates the user's emotions. |
+| 👁️ | **The Mirror** | An observer who points out recurring patterns in the user's behavior and thoughts. |
+| 👊 | **The Starter** | A motivator who breaks down tasks into small steps and pushes the user to take action. |
+| 🧭 | **The Weaver** | An observer who finds hidden themes and connections in the user's writing. |
+| 🎭 | **The Absurdist** | A voice that uses black humor to point out the absurdity of the user's situation. |
+
+### The Scholar Deck
+This deck offers academic and intellectual perspectives on your writing.
+
+| Icon | Name | Description |
+|---|---|---|
+| 🧭 | **The Linguist** | Analyzes your writing from the perspective of linguistic structure, semantics, and pragmatics. |
+| 👁️ | **The Painter** | Focuses on aesthetics, visual imagery, and mood. |
+| 💡 | **The Physicist** | Applies the laws of physics, mechanics, and energy to your writing. |
+| 🧠 | **The Computer Scientist** | Uses algorithms, data structures, and complexity to analyze your thoughts. |
+| ❤️ | **The Doctor** | Offers a medical, physiological, and psychological perspective. |
+| 🧭 | **The Historian** | Provides historical context, cultural background, and identifies patterns. |
+
+### The Philosophy Deck
+This deck examines your writing through the lens of different philosophical schools of thought.
+
+| Icon | Name | Description |
+|---|---|---|
+| 🛡️ | **The Stoic** | Emphasizes reason, self-control, and the acceptance of the uncontrollable. |
+| 💨 | **The Taoist** | Focuses on wu-wei (effortless action), natural flow, and simplicity. |
+| 🤔 | **The Existentialist** | Emphasizes choice, freedom, responsibility, and the creation of meaning. |
+| 👊 | **The Pragmatist** | Focuses on practical effects, usefulness, and real-world results. |
 
 ---
 
-## Architecture Snapshot
+## Technical Deep Dive
 
-### Frontend (React + TypeScript)
-- TipTap editor with custom highlight brushes and per-voice overlays.
-- Auto-save every 3 seconds using the same routine as manual saves.
-- Shared session grouping helper (`src/utils/sessionGrouping.ts`) powers both the calendar popup and timeline view.
-- Browser timezone detection synced to backend preferences.
+Ink & Memory is built on a modern, robust technology stack:
 
-### Backend (FastAPI + PolyCLI)
-- Stateful analyzer enforcing density rules, deduplication, and emotional-state prompts.
-- Timeline image scheduler (currently global, future per-user cadence) built on PolyCLI sessions.
-- SQLite persistence with UTC timestamps (TZ forced at process start).
-- Control panel and session registry for debugging and PolyCLI experiments.
+*   **Frontend:** A beautiful and responsive interface built with **React** and **TypeScript**. We use **Vite** for a fast and efficient development experience, and the **TipTap** editor for a smooth and customizable writing surface. A custom **EditorEngine** manages the editor state and communicates with the backend.
+*   **Backend:** A powerful and scalable API built with **FastAPI** and **Python**. We use the **PolyCLI** library to orchestrate calls to Large Language Models (LLMs), constructing detailed prompts to generate high-quality, context-aware comments from the different AI personas. A **Stateless Analyzer** is at the core of the "voices" feature.
+*   **Database:** A reliable and efficient **SQLite** database stores all your data, including users, sessions, preferences, decks, voices, and friends.
 
 ---
 
-## Setup
+## Getting Started
 
 ### Prerequisites
 - Python 3.11+
@@ -58,10 +97,11 @@ All thirteen Disco Elysium archetypes are included: Logic, Empathy, Inland Empir
 ```bash
 cd backend
 uv venv
-source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
-uv pip install -e ../PolyCLI
-uv pip install beautifulsoup4 requests 'httpx[socks]'
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+uv pip install -r requirements.txt
 
+# Create a models.json file for your LLM configuration
+# The endpoint and api_key are examples, please use your own
 cat > models.json <<'EOC'
 {
   "models": {
@@ -76,7 +116,7 @@ EOC
 
 python server.py
 ```
-Runs at `http://localhost:8765`.
+The backend will be running at `http://localhost:8765`.
 
 ### Frontend
 ```bash
@@ -84,64 +124,40 @@ cd frontend
 npm install
 npm run dev
 ```
-Runs at `http://localhost:5173`.
-
----
-
-## Daily Workflow
-1. Start backend + frontend.
-2. Write in English or Chinese; voices respond immediately.
-3. Auto-save handles persistence. “Save today” is optional if you want to tag the calendar entry.
-4. Review prior days via the calendar or timeline; both use the same captions and timestamps.
-5. Pin a friend timeline from the picker to compare side-by-side.
-6. Export/import data via the built-in API endpoints when switching devices.
+The frontend will be running at `http://localhost:5173`.
 
 ---
 
 ## Roadmap
-- **Per-user timeline scheduling** – Scheduler currently runs once per day using a single timezone; we now store `timezone` in preferences and will move to per-user cadence.
-- **Friend timezone awareness** – Friend timelines will eventually display which timezone their entries use once per-user scheduling lands.
-- **Visitor “shadow accounts”** – Reintroduce visitor mode by minting anonymous user records per browser session (UUID + JWT) so visitors hit the exact same backend paths with restricted quotas. No localStorage divergences.
-- **Open-source polish** – Document control-plane endpoints, linting, and seed data for new deployments.
-- **User onboarding and social design** – New guidance flows and a refreshed social feature set.
-- **Visual direction & prompts** – Pick a tighter theme, refine built-in prompts, and test model choices with fallback/rollback plans.
-- **Timeline UI refresh** – Rework reflections UI with lighter, breathing visualization.
-- **Backend latency wins** – Monitor bottlenecks, add caching/batching for API calls.
-- **Richer images & assets** – Art-therapy-inspired generation, auto-made agent stickers, and greeting banners (Gemini 3).
-- **Content & evaluation** – Broaden “famous experience” search for agents; auto-evaluate decks; grow long-term agent memory.
-- **Audio layer** – Add voice/BGM feedback.
-- **Workflow & tests** – CI workflow cleanup and better coverage.
 
----
+We have a lot of ideas for the future of Ink & Memory. Here are some of the things we're working on:
 
-## Project Structure
-```
-ink-and-memory/
-├── assets/                         # README screenshots, fonts, art
-│   └── writing-area.png            # Current product shot
-├── backend/                        # FastAPI + PolyCLI server
-│   ├── server.py                   # Main API entrypoint (UTC enforced)
-│   ├── scheduler.py                # Timeline image cron
-│   ├── database.py                 # SQLite schema + helpers (sessions, prefs)
-│   ├── config.py / prompts/        # Voice archetypes + system prompts
-│   └── archive/                    # Research + vibe-coding notes
-└── frontend/                       # React + TipTap client
-    ├── src/App.tsx                 # Notebook, auto-save, timezone sync
-    ├── src/components/             # Calendar, timeline, friends, decks, etc.
-    ├── src/utils/sessionGrouping.ts# Shared calendar/timeline grouping helper
-    ├── src/api/voiceApi.ts         # REST client for backend
-    └── public/                     # Fonts, favicon, static assets
-```
+*   **More Voices and Decks:** We plan to continue expanding the library of voices and decks, offering even more perspectives on your writing.
+*   **Richer, More Immersive Experience:** We’re exploring new ways to visualize your entries, your progress, and your connections with friends.
+*   **A Platform for Creativity:** We want to make Ink & Memory a place where you can not only write, but also create, share, and collaborate with others.
+*   **Mobile App:** We're working on a mobile version of Ink & Memory, so you can write and reflect on the go.
 
 ---
 
 ## Contributing
-This is still a personal experimental project, but feel free to fork and adapt.
+
+Ink & Memory is an open-source project, and we welcome contributions from the community. If you’re interested in contributing, please feel free to fork the repository, make your changes, and submit a pull request.
+
+Here are some of the ways you can contribute:
+
+*   **Report bugs:** If you find a bug, please open an issue on our GitHub repository.
+*   **Suggest features:** If you have an idea for a new feature, please open an issue to discuss it.
+*   **Write code:** If you're a developer, we'd love for you to help us build new features and fix bugs.
+*   **Create new voices and decks:** If you have an idea for a new voice or deck, we'd love to hear it.
+
+---
 
 ## License
+
 MIT
 
 ## Credits
+
 - Inspired by [Disco Elysium](https://discoelysium.com/)
 - Built with [PolyCLI](https://github.com/shuxueshuxue/PolyCLI)
 - Fonts: [Excalifont](https://github.com/excalidraw/excalidraw) & Xiaolai

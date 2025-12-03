@@ -1,7 +1,7 @@
 # Ink & Memory: 你的思想，重现于镜
 
 <p align="center">
-  <img src="assets/writing-area.png" alt="Ink & Memory 写作区域" width="700"/>
+  <img src="assets/banner.png" alt="Ink & Memory 横幅" width="700"/>
 </p>
 
 **Ink & Memory** 是一款受电子游戏《极乐迪斯科》启发而创作的日记工作室。在这里，你可以写作、反思，并通过一系列独特的内心声音，听到自己思想的回响。当你打字时，一个由不同原型组成的“内在委员会”会加入对话，提供观点、引导，甚至一丝荒诞的幽默。
@@ -19,7 +19,7 @@ Ink & Memory 的核心是一个简洁、极简的写作环境。编辑器旨在�
 在你写作时，一个由 16 个内心声音组成的委员会将对你的文本进行评论，突出关键短语，并提供它们独特的视角。这些声音的灵感来自多种原型，从善于分析的“拆解者”到温柔的“接纳者”。此功能由一个能实时分析你写作的复杂人工智能系统驱动。
 
 <p align="center">
-  <img src="assets/demo-screenshot.png" alt="Ink & Memory 演示" width="700"/>
+  <img src="assets/writing-area.png" alt="Ink & Memory 用户界面" width="700"/>
 </p>
 
 ### 时间线与日历

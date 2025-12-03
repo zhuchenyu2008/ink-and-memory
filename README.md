@@ -1,7 +1,7 @@
 # Ink & Memory: Your Mind, Mirrored
 
 <p align="center">
-  <img src="assets/writing-area.png" alt="Ink & Memory Writing Area" width="700"/>
+  <img src="assets/banner.png" alt="Ink & Memory Banner" width="700"/>
 </p>
 
 **Ink & Memory** is a journaling studio inspired by the inner monologues of the video game *Disco Elysium*. It’s a space to write, reflect, and hear your own thoughts echoed back to you through a cast of distinct inner voices. As you type, a council of archetypes chimes in, offering perspective, guidance, and a touch of the absurd.
@@ -19,7 +19,7 @@ At the heart of Ink & Memory is a clean, minimalist writing environment. The edi
 As you write, a council of 16 inner voices will comment on your text, highlighting key phrases and offering their unique perspectives. These voices are inspired by a variety of archetypes, from the analytical "Unpacker" to the gentle "Holder". This feature is powered by a sophisticated AI system that analyzes your writing in real-time.
 
 <p align="center">
-  <img src="assets/demo-screenshot.png" alt="Ink & Memory Demo" width="700"/>
+  <img src="assets/writing-area.png" alt="Ink & Memory UI" width="700"/>
 </p>
 
 ### The Timeline and Calendar

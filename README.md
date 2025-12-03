@@ -6,6 +6,14 @@ Ink & Memory is a Disco Elysium–inspired journaling studio where inner voices 
 
 ---
 
+## Who It’s For
+- University students and early-career folks under pressure who need a low-friction emotional outlet.
+- People who like journaling/handbook culture but find traditional daily entries too heavy.
+- Those who want to record life with less time/psychological cost.
+- Literature lovers and founders seeking sparks of inspiration.
+
+---
+
 ## What You Can Do
 
 - **Write in two languages** – The notebook, highlights, captions, and voice comments support both English and Chinese, switching automatically with your text.
@@ -95,6 +103,14 @@ Runs at `http://localhost:5173`.
 - **Friend timezone awareness** – Friend timelines will eventually display which timezone their entries use once per-user scheduling lands.
 - **Visitor “shadow accounts”** – Reintroduce visitor mode by minting anonymous user records per browser session (UUID + JWT) so visitors hit the exact same backend paths with restricted quotas. No localStorage divergences.
 - **Open-source polish** – Document control-plane endpoints, linting, and seed data for new deployments.
+- **User onboarding and social design** – New guidance flows and a refreshed social feature set.
+- **Visual direction & prompts** – Pick a tighter theme, refine built-in prompts, and test model choices with fallback/rollback plans.
+- **Timeline UI refresh** – Rework reflections UI with lighter, breathing visualization.
+- **Backend latency wins** – Monitor bottlenecks, add caching/batching for API calls.
+- **Richer images & assets** – Art-therapy-inspired generation, auto-made agent stickers, and greeting banners (Gemini 3).
+- **Content & evaluation** – Broaden “famous experience” search for agents; auto-evaluate decks; grow long-term agent memory.
+- **Audio layer** – Add voice/BGM feedback.
+- **Workflow & tests** – CI workflow cleanup and better coverage.
 
 ---
 

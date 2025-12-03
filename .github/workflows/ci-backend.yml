@@ -20,6 +20,11 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/amd64 \
-            -t test-build \
+            -t ink-backend:ci \
             --load \
             backend
+
+      - name: Run backend smoke test (register, login, deck create)
+        run: |
+          chmod +x backend/tests/ci-smoke.sh
+          backend/tests/ci-smoke.sh ink-backend:ci

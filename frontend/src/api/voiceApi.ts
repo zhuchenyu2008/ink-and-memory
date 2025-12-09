@@ -390,10 +390,14 @@ export async function saveSession(sessionId: string, editorState: any, name?: st
 }
 
 /**
- * List all sessions
+ * List all sessions (metadata only). If timezone is provided, the backend will include a local-day key.
  */
-export async function listSessions(): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/sessions`, {
+export async function listSessions(timezone?: string): Promise<any[]> {
+  const url = timezone
+    ? `${API_BASE}/api/sessions?timezone=${encodeURIComponent(timezone)}`
+    : `${API_BASE}/api/sessions`;
+
+  const response = await fetch(url, {
     headers: getAuthHeaders()
   });
 

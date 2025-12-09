@@ -1071,16 +1071,40 @@ def get_session(user_id: int, session_id: str):
         db.close()
 
 def list_sessions(user_id: int):
-    """List all sessions for a user."""
+    """List all sessions for a user with a lightweight preview."""
     db = get_db()
     try:
         rows = db.execute("""
-        SELECT id, name, created_at, updated_at
+        SELECT id, name, editor_state_json, created_at, updated_at
         FROM user_sessions
         WHERE user_id = ?
         ORDER BY updated_at DESC
         """, (user_id,)).fetchall()
-        return [dict(row) for row in rows]
+
+        results = []
+        for row in rows:
+            first_line = ""
+            try:
+                state = json.loads(row["editor_state_json"])
+                first_text = next(
+                    (c.get("content", "").strip() for c in state.get("cells", []) if c.get("type") == "text" and c.get("content")),
+                    ""
+                )
+                if first_text:
+                    first_line = first_text.split("\n")[0][:30]
+            except Exception:
+                first_line = ""
+
+            results.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "first_line": first_line,
+                }
+            )
+        return results
     finally:
         db.close()
 

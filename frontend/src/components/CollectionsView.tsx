@@ -533,7 +533,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
       if (isAuthenticated) {
         try {
           const { listSessions, getSession } = await import('../api/voiceApi');
-          const groupedEntries = await loadSessionsGroupedByDate(listSessions, getSession, {
+          const groupedEntries = await loadSessionsGroupedByDate(() => listSessions(timezone), getSession, {
             requireName: true,
             timezone
           });

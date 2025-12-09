@@ -9,6 +9,7 @@ if hasattr(time, "tzset"):
     time.tzset()
 
 import asyncio
+from datetime import datetime
 import httpx
 from fastapi import FastAPI, HTTPException, Depends, Header, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -1256,15 +1257,40 @@ def import_calendar_recovery(
     return {"success": True, "imported": {"sessions": len(sessions)}}
 
 
+def _clean_timestamp(ts_raw: Optional[str]) -> Optional[datetime]:
+    """Best-effort ISO parser for timestamps stored in DB."""
+    if not ts_raw:
+        return None
+    try:
+        cleaned = ts_raw.replace("Z", "+00:00")
+        if "T" not in cleaned and " " in cleaned:
+            cleaned = cleaned.replace(" ", "T")
+        return datetime.fromisoformat(cleaned)
+    except Exception:
+        return None
+
+
 @app.get("/api/sessions")
-def list_sessions(current_user: dict = Depends(get_current_user)):
+def list_sessions(timezone: str = "Asia/Shanghai", current_user: dict = Depends(get_current_user)):
     """
     List all sessions for current user.
-    Returns: Array of session metadata (without full editor state)
+    Returns: Array of session metadata (without full editor state) plus local day key + first line.
     """
     user_id = current_user["user_id"]
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(timezone)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid timezone")
+
     sessions = database.list_sessions(user_id)
-    return {"sessions": sessions}
+    enriched = []
+    for s in sessions:
+        dt = _clean_timestamp(s.get("created_at") or s.get("updated_at"))
+        date_key = dt.astimezone(tz).strftime("%Y-%m-%d") if dt else None
+        enriched.append({**s, "date_key": date_key})
+
+    return {"sessions": enriched}
 
 @app.get("/api/sessions/aggregate")
 def get_sessions_aggregate(timezone: str = "Asia/Shanghai", current_user: dict = Depends(get_current_user)):

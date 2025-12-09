@@ -3028,6 +3028,7 @@ export default function App() {
           onEntryDeleted={handleCalendarEntryDeleted}
           onClose={() => setShowCalendarPopup(false)}
           timezone={userTimezone}
+          initialDateKey={getLocalDayKey(state?.createdAt, userTimezone) ?? getTodayKeyInTimezone(userTimezone)}
         />
       )}
     </>

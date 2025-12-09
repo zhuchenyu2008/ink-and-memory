@@ -1084,6 +1084,44 @@ def list_sessions(user_id: int):
     finally:
         db.close()
 
+def get_all_sessions_with_text(user_id: int) -> list[dict]:
+    """
+    Get all sessions for a user with text extracted from text cells.
+    Returns [{id, name, created_at, updated_at, text}]
+    """
+    db = get_db()
+    try:
+        rows = db.execute("""
+        SELECT id, name, editor_state_json, created_at, updated_at
+        FROM user_sessions
+        WHERE user_id = ?
+        ORDER BY updated_at DESC
+        """, (user_id,)).fetchall()
+
+        sessions = []
+        for row in rows:
+            try:
+                state = json.loads(row['editor_state_json'])
+                text = '\n\n'.join(
+                    cell.get('content', '')
+                    for cell in state.get('cells', [])
+                    if cell.get('type') == 'text' and cell.get('content', '').strip()
+                ).strip()
+            except Exception:
+                text = ''
+
+            item = {
+                'id': row['id'],
+                'name': row['name'],
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at'],
+                'text': text,
+            }
+            sessions.append(item)
+        return sessions
+    finally:
+        db.close()
+
 def delete_session(user_id: int, session_id: str):
     """Delete a session."""
     db = get_db()

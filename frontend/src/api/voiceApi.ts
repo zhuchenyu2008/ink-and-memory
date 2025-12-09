@@ -208,7 +208,7 @@ export async function chatWithVoice(
 /**
  * Analyze echoes (recurring themes) from all notes (PolyCLI direct call)
  */
-export async function analyzeEchoes(allNotes: string): Promise<any[]> {
+export async function analyzeEchoes(): Promise<any[]> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   const language = getUILanguage();
 
@@ -220,7 +220,7 @@ export async function analyzeEchoes(allNotes: string): Promise<any[]> {
     },
     body: JSON.stringify({
       session_id: 'analyze_echoes',
-      params: { all_notes: allNotes, language },
+      params: { language },
       timeout: 60
     })
   });
@@ -237,7 +237,7 @@ export async function analyzeEchoes(allNotes: string): Promise<any[]> {
 /**
  * Analyze traits (personality characteristics) from all notes (PolyCLI direct call)
  */
-export async function analyzeTraits(allNotes: string): Promise<any[]> {
+export async function analyzeTraits(): Promise<any[]> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   const language = getUILanguage();
 
@@ -249,7 +249,7 @@ export async function analyzeTraits(allNotes: string): Promise<any[]> {
     },
     body: JSON.stringify({
       session_id: 'analyze_traits',
-      params: { all_notes: allNotes, language },
+      params: { language },
       timeout: 60
     })
   });
@@ -266,7 +266,7 @@ export async function analyzeTraits(allNotes: string): Promise<any[]> {
 /**
  * Analyze patterns (behavioral patterns) from all notes (PolyCLI direct call)
  */
-export async function analyzePatterns(allNotes: string): Promise<any[]> {
+export async function analyzePatterns(): Promise<any[]> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   const language = getUILanguage();
 
@@ -278,7 +278,7 @@ export async function analyzePatterns(allNotes: string): Promise<any[]> {
     },
     body: JSON.stringify({
       session_id: 'analyze_patterns',
-      params: { all_notes: allNotes, language },
+      params: { language },
       timeout: 60
     })
   });
@@ -295,7 +295,7 @@ export async function analyzePatterns(allNotes: string): Promise<any[]> {
 /**
  * Generate a daily picture based on user's notes (PolyCLI direct call)
  */
-export async function generateDailyPicture(allNotes: string): Promise<{ image_base64: string; thumbnail_base64?: string; prompt: string }> {
+export async function generateDailyPicture(): Promise<{ image_base64: string; thumbnail_base64?: string; prompt: string }> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 
   const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
@@ -306,7 +306,7 @@ export async function generateDailyPicture(allNotes: string): Promise<{ image_ba
     },
     body: JSON.stringify({
       session_id: 'generate_daily_picture',
-      params: { all_notes: allNotes },
+      params: { },
       timeout: 60
     })
   });
@@ -404,6 +404,23 @@ export async function listSessions(): Promise<any[]> {
 
   const data = await response.json();
   return data.sessions;
+}
+
+export async function fetchSessionsAggregate(timezone: string): Promise<{
+  stats: { total_days: number; total_entries: number; total_words: number };
+  sessions: Array<{ id: string; name?: string; created_at?: string; updated_at?: string; has_text: boolean; word_count: number }>;
+  timezone: string;
+}> {
+  const response = await fetch(`${API_BASE}/api/sessions/aggregate?timezone=${encodeURIComponent(timezone)}`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Aggregate sessions failed');
+  }
+
+  return await response.json();
 }
 
 /**

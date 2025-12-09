@@ -39,6 +39,13 @@ def normalize_language_code(language: Optional[str]) -> str:
     return "en"
 
 
+
+
+def _load_all_notes_text(user_id: int) -> str:
+    sessions = database.get_all_sessions_with_text(user_id)
+    texts = [s.get("text", "") for s in sessions if (s.get("text") or "").strip()]
+    return "\n\n".join(texts)
+
 def resolve_language(_user_id: int, requested_language: Optional[str] = None) -> str:
     """Return a supported language code, falling back to default."""
     if requested_language:
@@ -344,17 +351,18 @@ def analyze_text(
     name="Analyze Echoes",
     description="Find recurring themes and topics in all user notes",
     params={
-        "all_notes": {"type": "str"},
         "user_id": {"type": "int"},
         "language": {"type": "str"},
     },
     category="Analysis",
 )
-def analyze_echoes(all_notes: str, user_id: int, language: str = "en"):
+def analyze_echoes(user_id: int, language: str = "en"):
     """Analyze recurring themes and topics across all notes."""
+    notes = _load_all_notes_text(user_id)
+    if not notes.strip():
+        return {"echoes": []}
     print(f"\n{'=' * 60}")
     print(f"🔄 analyze_echoes() called")
-    print(f"   Notes length: {len(all_notes)} chars")
     language_code = normalize_language_code(language)
     print(f"   Language: {language_code}")
     print(f"{'=' * 60}\n")
@@ -365,7 +373,7 @@ def analyze_echoes(all_notes: str, user_id: int, language: str = "en"):
 
 Notes:
 ---
-{all_notes}
+{notes}
 ---
 
 Find 3-5 echoes (recurring themes) that appear across different entries. For each echo:
@@ -400,17 +408,18 @@ Return ONLY the JSON array, no other text."""
     name="Analyze Traits",
     description="Identify personality traits and characteristics from user notes",
     params={
-        "all_notes": {"type": "str"},
         "user_id": {"type": "int"},
         "language": {"type": "str"},
     },
     category="Analysis",
 )
-def analyze_traits(all_notes: str, user_id: int, language: str = "en"):
+def analyze_traits(user_id: int, language: str = "en"):
     """Analyze personality traits from all notes."""
+    notes = _load_all_notes_text(user_id)
+    if not notes.strip():
+        return {"traits": []}
     print(f"\n{'=' * 60}")
     print(f"👤 analyze_traits() called")
-    print(f"   Notes length: {len(all_notes)} chars")
     language_code = normalize_language_code(language)
     print(f"   Language: {language_code}")
     print(f"{'=' * 60}\n")
@@ -421,7 +430,7 @@ def analyze_traits(all_notes: str, user_id: int, language: str = "en"):
 
 Notes:
 ---
-{all_notes}
+{notes}
 ---
 
 Identify 4-6 personality traits that are evident from the writing. For each trait:
@@ -456,17 +465,20 @@ Return ONLY the JSON array, no other text."""
     name="Analyze Patterns",
     description="Identify behavioral patterns and habits from user notes",
     params={
-        "all_notes": {"type": "str"},
         "user_id": {"type": "int"},
         "language": {"type": "str"},
     },
     category="Analysis",
 )
-def analyze_patterns(all_notes: str, user_id: int, language: str = "en"):
+def analyze_patterns(
+    user_id: int, language: str = "en"
+):
     """Analyze behavioral patterns from all notes."""
+    notes = _load_all_notes_text(user_id)
+    if not notes.strip():
+        return {"patterns": []}
     print(f"\n{'=' * 60}")
     print(f"🔍 analyze_patterns() called")
-    print(f"   Notes length: {len(all_notes)} chars")
     language_code = normalize_language_code(language)
     print(f"   Language: {language_code}")
     print(f"{'=' * 60}\n")
@@ -477,7 +489,7 @@ def analyze_patterns(all_notes: str, user_id: int, language: str = "en"):
 
 Notes:
 ---
-{all_notes}
+{notes}
 ---
 
 Identify 3-5 behavioral patterns or habits. For each pattern:
@@ -512,28 +524,29 @@ Return ONLY the JSON array, no other text."""
     name="Generate Daily Picture",
     description="Generate an artistic image based on user's daily notes",
     params={
-        "all_notes": {"type": "str"},
         "user_id": {"type": "int"},
         "target_date": {"type": "str"},  # Optional: YYYY-MM-DD format
     },
     category="Creative",
 )
-def generate_daily_picture(all_notes: str, user_id: int, target_date: str = None):
+def generate_daily_picture(user_id: int, target_date: str = None):
     """Generate an image based on the essence of user's daily notes.
 
     Args:
-        all_notes: Text content from user's notes
         user_id: User ID
         target_date: Optional date string (YYYY-MM-DD). If None, uses today.
     """
     from datetime import datetime
+
+    notes = _load_all_notes_text(user_id)
+    if not notes.strip():
+        return {"image_base64": "", "thumbnail_base64": "", "prompt": ""}
 
     if target_date is None:
         target_date = datetime.now().strftime("%Y-%m-%d")
 
     print(f"\n{'=' * 60}")
     print(f"🎨 generate_daily_picture() called")
-    print(f"   Notes length: {len(all_notes)} chars")
     print(f"   Target date: {target_date}")
     print(f"{'=' * 60}\n")
 
@@ -569,7 +582,7 @@ def generate_daily_picture(all_notes: str, user_id: int, target_date: str = None
 
 Notes:
 ---
-{all_notes}
+{notes}
 ---
 {recent_prompts_text}
 Create an EXTREMELY SIMPLE image description (1-2 sentences):
@@ -1230,12 +1243,74 @@ def import_calendar_recovery(
 def list_sessions(current_user: dict = Depends(get_current_user)):
     """
     List all sessions for current user.
-
     Returns: Array of session metadata (without full editor state)
     """
     user_id = current_user["user_id"]
     sessions = database.list_sessions(user_id)
     return {"sessions": sessions}
+
+@app.get("/api/sessions/aggregate")
+def get_sessions_aggregate(timezone: str = "Asia/Shanghai", current_user: dict = Depends(get_current_user)):
+    """
+    Aggregate stats across all sessions for the user.
+    Returns stats only (no concatenated text) and per-session summaries.
+    """
+    user_id = current_user["user_id"]
+    sessions = database.get_all_sessions_with_text(user_id)
+
+    total_entries = 0
+    total_words = 0
+    days = set()
+
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(timezone)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid timezone")
+
+    for s in sessions:
+        text = s.get("text", "") or ""
+        if text.strip():
+            total_entries += 1
+            total_words += len(text.split())
+        # derive local date from updated_at or created_at
+        ts_raw = s.get("updated_at") or s.get("created_at")
+        if ts_raw:
+            try:
+                cleaned = ts_raw.replace("Z", "+00:00")
+                if "T" not in cleaned and " " in cleaned:
+                    cleaned = cleaned.replace(" ", "T")
+                dt = datetime.fromisoformat(cleaned)
+                local_dt = dt.astimezone(tz)
+                days.add(local_dt.strftime("%Y-%m-%d"))
+            except Exception:
+                continue
+
+    stats = {
+        "total_days": len(days),
+        "total_entries": total_entries,
+        "total_words": total_words,
+    }
+
+    # Strip text from response; include length hint only
+    summaries = [
+        {
+            "id": s["id"],
+            "name": s.get("name"),
+            "created_at": s.get("created_at"),
+            "updated_at": s.get("updated_at"),
+            "has_text": bool((s.get("text") or "").strip()),
+            "word_count": len((s.get("text") or "").split()) if s.get("text") else 0,
+        }
+        for s in sessions
+    ]
+
+    return {
+        "stats": stats,
+        "sessions": summaries,
+        "timezone": timezone,
+    }
 
 
 @app.get("/api/sessions/{session_id}")
@@ -1252,6 +1327,8 @@ def get_session(session_id: str, current_user: dict = Depends(get_current_user))
         raise HTTPException(status_code=404, detail="Session not found")
 
     return session
+
+
 
 
 @app.delete("/api/sessions/{session_id}")
@@ -1805,22 +1882,13 @@ def get_friend_timeline(
         raise HTTPException(status_code=403, detail="Not friends or friend not found")
     return {"pictures": timeline}
 
+
 @app.websocket("/ws/speech-recognition")
 async def speech_recognition(websocket: WebSocket):
     # TODO: find a way of authentication for websocket
     await websocket.accept()
     await init_speech_recognition(websocket)
 
-# @@@ Removed /api/analyze wrapper - frontend now calls /polycli/api/trigger-sync directly
-
-# @@@ Removed /api/chat wrapper - frontend now calls /polycli/api/trigger-sync directly
-
-# @@@ Removed /api/generate-image wrapper - frontend now calls /polycli/api/trigger-sync directly
-# @@@ Removed /api/analyze-echoes wrapper - frontend now calls /polycli/api/trigger-sync directly
-# @@@ Removed /api/analyze-traits wrapper - frontend now calls /polycli/api/trigger-sync directly
-# @@@ Removed /api/analyze-patterns wrapper - frontend now calls /polycli/api/trigger-sync directly
-
-# ========== Mount PolyCLI Control Panel ==========
 
 registry = get_registry()
 # @@@ Pass auth_callback to enable authentication for /polycli/api/trigger-sync

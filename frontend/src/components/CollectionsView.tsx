@@ -388,60 +388,6 @@ function renderTimelineCard({
 }
 
 // @@@ Get all notes from all sessions (localStorage for guest, database for authenticated)
-async function getAllNotesFromSessions(isAuthenticated: boolean): Promise<string> {
-  const allText: string[] = [];
-
-  if (isAuthenticated) {
-    // @@@ Load from database for authenticated users
-    try {
-      const { listSessions, getSession } = await import('../api/voiceApi');
-      const sessions = await listSessions();
-
-      for (const session of sessions) {
-        try {
-          const fullSession = await getSession(session.id);
-          if (fullSession.editor_state?.cells) {
-            const text = fullSession.editor_state.cells
-              .filter((c: any) => c.type === 'text')
-              .map((c: any) => c.content)
-              .join('\n\n');
-            if (text.trim()) {
-              allText.push(text);
-            }
-          }
-        } catch (err) {
-          console.error(`Failed to load session ${session.id}:`, err);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load sessions from database:', error);
-    }
-  } else {
-    // @@@ Load from localStorage for guests
-    const keys = Object.keys(localStorage);
-    for (const key of keys) {
-      if (key === STORAGE_KEYS.EDITOR_STATE || key.startsWith(`${STORAGE_KEYS.EDITOR_STATE}_`)) {
-        try {
-          const state = JSON.parse(localStorage.getItem(key) || '{}');
-          if (state.cells) {
-            const text = state.cells
-              .filter((c: any) => c.type === 'text')
-              .map((c: any) => c.content)
-              .join('\n\n');
-            if (text.trim()) {
-              allText.push(text);
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse session:', key, e);
-        }
-      }
-    }
-  }
-
-  return allText.join('\n\n---\n\n');
-}
-
 // @@@ Timeline page - combines pictures and comments by date
 const MAX_RECENT_FRIENDS = 6;
 
@@ -997,14 +943,13 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, friendToSelect, onF
     setGeneratingForDate(dateStr);
 
     try {
-      const allNotes = await getAllNotesFromSessions(isAuthenticated);
-      if (!allNotes.trim()) {
-        alert('Write some notes first to generate an image!');
+      const { generateDailyPicture, saveDailyPicture } = await import('../api/voiceApi');
+      const { image_base64, thumbnail_base64, prompt } = await generateDailyPicture(); // Backend uses DB text
+
+      if (!image_base64) {
+        alert('No notes found to generate an image. Please write and save entries first.');
         return;
       }
-
-      const { generateDailyPicture, saveDailyPicture } = await import('../api/voiceApi');
-      const { image_base64, thumbnail_base64, prompt } = await generateDailyPicture(allNotes);
 
       // @@@ Use the dateStr parameter passed from the clicked card (already in YYYY-MM-DD format)
       const pictureDate = dateStr;

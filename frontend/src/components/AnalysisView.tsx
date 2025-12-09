@@ -75,7 +75,6 @@ export default function AnalysisView() {
   const formatDaysLabel = (count: number) => t('analysis.statsLabels.daysCount', { count });
   const formatEntriesLabel = (count: number) => t('analysis.statsLabels.entriesCount', { count });
   const formatWordsLabel = (value: number) => t('analysis.statsLabels.wordsCount', { value: value.toLocaleString() });
-  const [allNotes, setAllNotes] = useState('');
   const [echoes, setEchoes] = useState<Echo[]>([]);
   const [traits, setTraits] = useState<Trait[]>([]);
   const [patterns, setPatterns] = useState<Pattern[]>([]);
@@ -97,79 +96,20 @@ export default function AnalysisView() {
   // Collect all notes when component mounts
   useEffect(() => {
     const loadNotesData = async () => {
-      let calendarData: Record<string, any[]> = {};
-
-      // @@@ Load from database if authenticated, localStorage if guest
-      if (isAuthenticated) {
-        try {
-          const { listSessions, getSession } = await import('../api/voiceApi');
-          const sessions = await listSessions();
-
-          // Group sessions by date
-          const grouped: Record<string, any[]> = {};
-          for (const session of sessions) {
-            // @@@ Skip unnamed sessions (working drafts not saved yet)
-            if (!session.name) continue;
-
-            const fullSession = await getSession(session.id);
-
-            // @@@ BUGFIX: Extract date from timestamp (format: "2025-11-02 10:42:17" or "2025-11-02T10:42:17")
-            // Just take first 10 characters to get "YYYY-MM-DD"
-            let dateKey = session.created_at?.substring(0, 10);
-
-            // Prefer date from session name if it has one
-            if (session.name && /^\d{4}-\d{2}-\d{2}/.test(session.name)) {
-              dateKey = session.name.split(' - ')[0];
-            }
-            if (!dateKey) continue;
-
-            if (!grouped[dateKey]) {
-              grouped[dateKey] = [];
-            }
-            grouped[dateKey].push({
-              id: session.id,
-              timestamp: new Date(session.created_at || Date.now()).getTime(),
-              state: fullSession.editor_state,
-              firstLine: session.name
-            });
-          }
-          calendarData = grouped;
-        } catch (error) {
-          console.error('Failed to load from database:', error);
-          calendarData = getCalendarData(); // Fallback
-        }
-      } else {
-        calendarData = getCalendarData();
-      }
-
-      const notes: string[] = [];
-      let entryCount = 0;
-      const uniqueDays = new Set<string>();
-
-      // Collect all text from all entries
-      Object.keys(calendarData).forEach(dateKey => {
-        uniqueDays.add(dateKey);
-        calendarData[dateKey].forEach(entry => {
-          entryCount++;
-          entry.state.cells
-            .filter((cell: any) => cell.type === 'text')
-            .forEach((cell: any) => {
-              const content = (cell as TextCell).content.trim();
-              if (content) {
-                notes.push(content);
-              }
-            });
+      try {
+        const { fetchSessionsAggregate } = await import('../api/voiceApi');
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
+        const aggregate = await fetchSessionsAggregate(timezone);
+        setStats({
+          totalDays: aggregate.stats.total_days,
+          totalWords: aggregate.stats.total_words,
+          totalEntries: aggregate.stats.total_entries
         });
-      });
-
-      const allText = notes.join('\n\n');
-
-      setAllNotes(allText);
-      setStats({
-        totalDays: uniqueDays.size,
-        totalWords: countWords(allText),
-        totalEntries: entryCount
-      });
+      } catch (e) {
+        console.error('Failed to load aggregate stats:', e);
+        // Fallback to zeroed stats for now
+        setStats({ totalDays: 0, totalWords: 0, totalEntries: 0 });
+      }
     };
 
     loadNotesData();
@@ -232,11 +172,6 @@ export default function AnalysisView() {
       return;
     }
 
-    if (!allNotes.trim()) {
-      setError('No notes found. Save some entries first.');
-      return;
-    }
-
     setError('');
 
     // @@@ Capture results to save to localStorage (state updates are async!)
@@ -266,17 +201,17 @@ export default function AnalysisView() {
     // Analyze all three in parallel
     [echoesResult, traitsResult, patternsResult] = await Promise.all([
       analyzeWithState(
-        () => analyzeEchoes(allNotes),
+        () => analyzeEchoes(),
         'echoes',
         result => setEchoes(result)
       ),
       analyzeWithState(
-        () => analyzeTraits(allNotes),
+        () => analyzeTraits(),
         'traits',
         result => setTraits(result)
       ),
       analyzeWithState(
-        () => analyzePatterns(allNotes),
+        () => analyzePatterns(),
         'patterns',
         result => setPatterns(result)
       )
@@ -308,7 +243,7 @@ export default function AnalysisView() {
             entries: stats.totalEntries,
             words: stats.totalWords
           }
-        }, allNotes);
+        });
 
         // Reload reports from database
         const dbReports = await getAnalysisReports(MAX_SAVED_REPORTS);

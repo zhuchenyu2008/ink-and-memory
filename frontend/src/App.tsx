@@ -101,7 +101,6 @@ export default function App() {
 
   const [currentView, setCurrentView] = useState<'writing' | 'settings' | 'timeline' | 'analysis' | 'decks' | 'friends'>('writing');
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
-  const [timelineFriendToSelect, setTimelineFriendToSelect] = useState<number | null>(null);
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({});
 
   const browserTimezone = useMemo(() => {
@@ -1052,15 +1051,6 @@ export default function App() {
 
     setRefsReady(prev => prev + 1);
     setShowCalendarPopup(false);
-  }, []);
-
-  const handleViewFriendTimeline = useCallback((friendId: number, _friendName?: string) => {
-    setTimelineFriendToSelect(friendId);
-    setCurrentView('timeline');
-  }, []);
-
-  const handleFriendSelectionHandled = useCallback(() => {
-    setTimelineFriendToSelect(null);
   }, []);
 
   const handleCalendarEntryDeleted = useCallback((entryId: string) => {
@@ -2277,8 +2267,6 @@ export default function App() {
         <CollectionsView
           isVisible={currentView === 'timeline'}
           voiceConfigs={voiceConfigs}
-          friendToSelect={timelineFriendToSelect}
-          onFriendSelectionHandled={handleFriendSelectionHandled}
           timezone={userTimezone}
         />
       </div>
@@ -2310,7 +2298,6 @@ export default function App() {
         }}>
           <FriendsView
             isVisible={currentView === 'friends'}
-            onViewFriendTimeline={handleViewFriendTimeline}
           />
         </div>
       )}

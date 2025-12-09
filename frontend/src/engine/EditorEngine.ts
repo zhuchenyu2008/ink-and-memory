@@ -232,9 +232,9 @@ export class EditorEngine {
 
   // @@@ Restore editor to pristine state while starting a fresh session
   private resetEditorToBlank() {
-    const { selectedState, createdAt } = this.state;
+    const { selectedState, createdAt, id } = this.state;
     const preservedTimestamp = createdAt ?? new Date().toISOString();
-    const newSessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    const preservedId = id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
 
     this.state = {
       cells: [{ id: generateId(), type: 'text', content: '' }],
@@ -242,7 +242,7 @@ export class EditorEngine {
       tasks: [],
       weightPath: [],
       overlappedPhrases: [],
-      id: newSessionId,
+      id: preservedId,
       selectedState,
       createdAt: preservedTimestamp
     };

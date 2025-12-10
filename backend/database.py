@@ -1141,6 +1141,49 @@ def list_sessions(user_id: int):
     finally:
         db.close()
 
+def list_sessions_in_range(user_id: int, start_date: Optional[str], end_date: Optional[str]):
+    """
+    List sessions within an optional date range (UTC timestamps stored in DB).
+    Dates are strings YYYY-MM-DD and compared against created_at/updated_at dates.
+    """
+    db = get_db()
+    try:
+        rows = db.execute(f"""
+        SELECT id, name, editor_state_json, created_at, updated_at
+        FROM user_sessions
+        WHERE user_id = ?
+          AND (? IS NULL OR date(COALESCE(created_at, updated_at)) >= ?)
+          AND (? IS NULL OR date(COALESCE(created_at, updated_at)) <= ?)
+        ORDER BY updated_at DESC
+        """, (user_id, start_date, start_date, end_date, end_date)).fetchall()
+
+        results = []
+        for row in rows:
+            first_line = ""
+            try:
+                state = json.loads(row["editor_state_json"])
+                first_text = next(
+                    (c.get("content", "").strip() for c in state.get("cells", []) if c.get("type") == "text" and c.get("content")),
+                    ""
+                )
+                if first_text:
+                    first_line = first_text.split("\n")[0][:30]
+            except Exception:
+                first_line = ""
+
+            results.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "first_line": first_line,
+                }
+            )
+        return results
+    finally:
+        db.close()
+
 def get_all_sessions_with_text(user_id: int) -> list[dict]:
     """
     Get all sessions for a user with text extracted from text cells.
@@ -1880,6 +1923,31 @@ def get_friend_timeline(user_id: int, friend_id: int, limit: int = 30) -> list:
         ORDER BY date DESC
         LIMIT ?
         """, (friend_id, limit)).fetchall()
+
+        return [{
+            "date": row['date'],
+            "base64": row['base64'],
+            "prompt": row['prompt'],
+            "created_at": row['created_at']
+        } for row in rows]
+    finally:
+        db.close()
+
+def get_daily_pictures_range(user_id: int, start_date: Optional[str], end_date: Optional[str], limit: int = 30) -> list[dict]:
+    """
+    Get daily pictures within a date range (thumbnails preferred). Limits results.
+    """
+    db = get_db()
+    try:
+        rows = db.execute("""
+        SELECT date, COALESCE(thumbnail_base64, image_base64) as base64, prompt, created_at
+        FROM daily_pictures
+        WHERE user_id = ?
+          AND (? IS NULL OR date(date) >= ?)
+          AND (? IS NULL OR date(date) <= ?)
+        ORDER BY date DESC
+        LIMIT ?
+        """, (user_id, start_date, start_date, end_date, end_date, limit)).fetchall()
 
         return [{
             "date": row['date'],

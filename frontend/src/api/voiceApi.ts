@@ -389,15 +389,24 @@ export async function saveSession(sessionId: string, editorState: any, name?: st
   }
 }
 
-/**
- * List all sessions (metadata only). If timezone is provided, the backend will include a local-day key.
- */
-export async function listSessions(timezone?: string): Promise<any[]> {
-  const url = timezone
-    ? `${API_BASE}/api/sessions?timezone=${encodeURIComponent(timezone)}`
-    : `${API_BASE}/api/sessions`;
+type SessionRangeOptions = {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+};
 
-  const response = await fetch(url, {
+/**
+ * List sessions metadata, optionally scoped to a date range.
+ */
+export async function listSessions(timezone?: string, options: SessionRangeOptions = {}): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (timezone) params.append('timezone', timezone);
+  if (options.startDate) params.append('start_date', options.startDate);
+  if (options.endDate) params.append('end_date', options.endDate);
+  const endpoint = options.startDate || options.endDate ? '/api/sessions/range' : '/api/sessions';
+  const query = params.toString();
+
+  const response = await fetch(`${API_BASE}${endpoint}${query ? `?${query}` : ''}`, {
     headers: getAuthHeaders()
   });
 
@@ -503,8 +512,21 @@ export async function saveDailyPicture(date: string, imageBase64: string, prompt
 /**
  * Get daily pictures (thumbnails only for fast timeline loading)
  */
-export async function getDailyPictures(limit: number = 30): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/pictures?limit=${limit}`, {
+type PictureRangeOptions = {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+};
+
+export async function getDailyPictures(limit: number = 30, options: PictureRangeOptions = {}): Promise<any[]> {
+  const params = new URLSearchParams();
+  params.append('limit', String(options.limit ?? limit));
+  if (options.startDate) params.append('start_date', options.startDate);
+  if (options.endDate) params.append('end_date', options.endDate);
+  const endpoint = options.startDate || options.endDate ? '/api/pictures/range' : '/api/pictures';
+  const query = params.toString();
+
+  const response = await fetch(`${API_BASE}${endpoint}${query ? `?${query}` : ''}`, {
     headers: getAuthHeaders()
   });
 

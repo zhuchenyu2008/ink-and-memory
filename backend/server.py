@@ -1279,14 +1279,46 @@ def list_sessions(timezone: str = "Asia/Shanghai", current_user: dict = Depends(
     List all sessions for current user.
     Returns: Array of session metadata (without full editor state) plus local day key + first line.
     """
+    return list_sessions_with_range(None, None, timezone, current_user)
+
+def _validate_date_str(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        datetime.fromisoformat(value)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date format, expected YYYY-MM-DD")
+    if len(value) != 10:
+        raise HTTPException(status_code=400, detail="Invalid date format, expected YYYY-MM-DD")
+    return value
+
+@app.get("/api/sessions/range")
+def list_sessions_with_range(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    timezone: str = "Asia/Shanghai",
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    List sessions within an optional date range.
+    """
     user_id = current_user["user_id"]
+    start_date = _validate_date_str(start_date)
+    end_date = _validate_date_str(end_date)
     try:
         from zoneinfo import ZoneInfo
         tz = ZoneInfo(timezone)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid timezone")
 
-    sessions = database.list_sessions(user_id)
+    if start_date or end_date:
+        sessions = database.list_sessions_in_range(user_id, start_date, end_date)
+    else:
+        sessions = database.list_sessions(user_id)
+
     enriched = []
     for s in sessions:
         dt = _clean_timestamp(s.get("created_at") or s.get("updated_at"))
@@ -1414,6 +1446,22 @@ def get_pictures(limit: int = 30, current_user: dict = Depends(get_current_user)
     """
     user_id = current_user["user_id"]
     pictures = database.get_daily_pictures(user_id, limit)
+    return {"pictures": pictures}
+
+@app.get("/api/pictures/range")
+def get_pictures_range(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 30,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get daily pictures within an optional date range.
+    """
+    user_id = current_user["user_id"]
+    start_date = _validate_date_str(start_date)
+    end_date = _validate_date_str(end_date)
+    pictures = database.get_daily_pictures_range(user_id, start_date, end_date, limit)
     return {"pictures": pictures}
 
 

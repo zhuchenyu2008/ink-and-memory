@@ -21,7 +21,7 @@ import database
 from server import generate_daily_picture
 
 
-async def generate_for_user(user_id: int, text: str, date: str) -> dict:
+async def generate_for_user(user_id: int, text: str, date: str, timezone: str) -> dict:
     """
     Generate timeline image for a single user (async wrapper).
 
@@ -34,18 +34,19 @@ async def generate_for_user(user_id: int, text: str, date: str) -> dict:
         dict with success status and metadata
     """
     try:
-        # @@@ Check if image already exists for this date (avoid duplicates)
-        existing_pictures = database.get_daily_pictures(user_id, limit=1000)
-        if any(p['date'] == date for p in existing_pictures):
-            print(f"⏭️  User {user_id}: Image already exists for {date}, skipping")
-            return {"success": True, "skipped": True, "user_id": user_id, "date": date}
-
         # Call the existing PolyCLI session function (runs in thread pool)
         print(f"🎨 User {user_id}: Generating image for {date} ({len(text)} chars)")
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: generate_daily_picture(text, user_id, target_date=date)
+            lambda: generate_daily_picture(
+                user_id=user_id,
+                target_date=date,
+                timezone=timezone,
+                notes_override=text,
+                skip_if_exists=True,
+                dry_run=False,
+            )
         )
 
         if result and 'image_base64' in result:
@@ -102,7 +103,7 @@ async def generate_timeline_images_for_date(target_date: str, timezone: str = 'A
                 text = database.extract_text_from_sessions_on_date(user_id, target_date, timezone)
                 if text.strip():
                     # Create async task with semaphore for rate limiting
-                    task = generate_for_user(user_id, text, target_date)
+                    task = generate_for_user(user_id, text, target_date, timezone)
                     tasks.append(task)
                 else:
                     print(f"⏭️  User {user_id}: No text content, skipping")

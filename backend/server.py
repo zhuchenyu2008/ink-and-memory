@@ -538,30 +538,55 @@ Return ONLY the JSON array, no other text."""
         return {"patterns": []}
 
 
-@session_def(
-    name="Generate Daily Picture",
-    description="Generate an artistic image based on user's daily notes",
-    params={
-        "user_id": {"type": "int"},
-        "target_date": {"type": "str"},  # Optional: YYYY-MM-DD format
-    },
-    category="Creative",
-)
-def generate_daily_picture(user_id: int, target_date: str = None):
-    """Generate an image based on the essence of user's daily notes.
+def _today_in_tz(tz_name: str) -> str:
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo(tz_name))
+    return now.strftime("%Y-%m-%d")
 
-    Args:
-        user_id: User ID
-        target_date: Optional date string (YYYY-MM-DD). If None, uses today.
+
+def _generate_picture_for_date(
+    user_id: int,
+    target_date: Optional[str] = None,
+    *,
+    timezone: str = "Asia/Shanghai",
+    notes_override: Optional[str] = None,
+    skip_if_exists: bool = False,
+    dry_run: bool = False,
+):
     """
-    from datetime import datetime
+    Shared generator for daily pictures.
 
-    notes = _load_all_notes_text(user_id)
-    if not notes.strip():
-        return {"image_base64": "", "thumbnail_base64": "", "prompt": ""}
+    - Extracts notes for the given date (or uses override).
+    - Generates description + image.
+    - Saves to DB unless dry_run=True.
+    """
+    target_date = target_date or _today_in_tz(timezone)
+    target_date = target_date.strip()
 
-    if target_date is None:
-        target_date = datetime.now().strftime("%Y-%m-%d")
+    if skip_if_exists and not dry_run:
+        existing = database.get_daily_pictures_range(user_id, target_date, target_date, limit=1)
+        if existing:
+            return {
+                "skipped": True,
+                "reason": "already exists",
+                "date": target_date,
+                "image_base64": existing[0]["base64"],
+                "thumbnail_base64": existing[0]["base64"],
+                "prompt": existing[0].get("prompt") or "",
+            }
+
+    notes = notes_override if notes_override is not None else database.extract_text_from_sessions_on_date(
+        user_id, target_date, timezone
+    )
+    if not (notes or "").strip():
+        return {
+            "skipped": True,
+            "reason": "no notes for date",
+            "date": target_date,
+            "image_base64": "",
+            "thumbnail_base64": "",
+            "prompt": "",
+        }
 
     print(f"\n{'=' * 60}")
     print(f"🎨 generate_daily_picture() called")
@@ -589,9 +614,7 @@ def generate_daily_picture(user_id: int, target_date: str = None):
                 recent_prompts_text += "\n⚠️ IMPORTANT: Create something COMPLETELY DIFFERENT from all previous descriptions above!\n"
                 recent_prompts_text += "⚠️ Use different: setting, objects, style, mood, time of day, colors, composition.\n"
                 recent_prompts_text += "⚠️ Be creative and avoid repetition!\n"
-                print(
-                    f"📋 Found {len(recent_prompts_list)} recent prompts to avoid duplication"
-                )
+                print(f"📋 Found {len(recent_prompts_list)} recent prompts to avoid duplication")
     except Exception as e:
         print(f"⚠️ Could not fetch recent prompts: {e}")
 
@@ -646,7 +669,7 @@ Return ONLY the minimal image description, no other text."""
     )
 
     if claude_response.status_code != 200:
-        return {"image_base64": None, "error": "Failed to create image description"}
+        return {"image_base64": None, "error": "Failed to create image description", "date": target_date}
 
     claude_data = claude_response.json()
     image_description = (
@@ -657,7 +680,7 @@ Return ONLY the minimal image description, no other text."""
     )
 
     if not image_description:
-        return {"image_base64": None, "error": "Failed to create image description"}
+        return {"image_base64": None, "error": "Failed to create image description", "date": target_date}
 
     print(f"📝 Image description: {image_description}")
 
@@ -681,9 +704,7 @@ Return ONLY the minimal image description, no other text."""
                 config.IMAGE_RETRY_BASE_TIMEOUT
                 + (attempt - 1) * config.IMAGE_RETRY_TIMEOUT_INCREMENT
             )
-            print(
-                f"🎨 Generating image (attempt {attempt}/{config.IMAGE_RETRY_MAX_ATTEMPTS}, timeout={timeout_seconds}s)..."
-            )
+            print(f"🎨 Generating image (attempt {attempt}/{config.IMAGE_RETRY_MAX_ATTEMPTS}, timeout={timeout_seconds}s)...")
             response = requests.post(
                 url,
                 headers=headers,
@@ -694,12 +715,12 @@ Return ONLY the minimal image description, no other text."""
             if response.status_code != 200:
                 print(f"❌ Error: {response.status_code}")
                 if attempt < config.IMAGE_RETRY_MAX_ATTEMPTS:
-                    print(f"⏳ Retrying in 2 seconds...")
+                    print("⏳ Retrying in 2 seconds...")
                     import time
 
                     time.sleep(2)
                     continue
-                return {"image_base64": None, "error": "Image generation failed"}
+                return {"image_base64": None, "error": "Image generation failed", "date": target_date}
 
             data = response.json()
 
@@ -736,69 +757,116 @@ Return ONLY the minimal image description, no other text."""
 
                             # Full JPEG (quality 85)
                             full_output = BytesIO()
-                            img.save(
-                                full_output, format="JPEG", quality=85, optimize=True
-                            )
-                            full_jpeg = base64.b64encode(full_output.getvalue()).decode(
-                                "utf-8"
-                            )
+                            img.save(full_output, format="JPEG", quality=85, optimize=True)
+                            full_jpeg = base64.b64encode(full_output.getvalue()).decode("utf-8")
 
                             # Thumbnail JPEG (400px width, quality 60)
                             thumb_width = 400
                             thumb_height = int(img.height * (thumb_width / img.width))
-                            thumb_img = img.resize(
-                                (thumb_width, thumb_height), Image.Resampling.LANCZOS
-                            )
+                            thumb_img = img.resize((thumb_width, thumb_height), Image.Resampling.LANCZOS)
 
                             thumb_output = BytesIO()
-                            thumb_img.save(
-                                thumb_output, format="JPEG", quality=60, optimize=True
-                            )
-                            thumb_jpeg = base64.b64encode(
-                                thumb_output.getvalue()
-                            ).decode("utf-8")
+                            thumb_img.save(thumb_output, format="JPEG", quality=60, optimize=True)
+                            thumb_jpeg = base64.b64encode(thumb_output.getvalue()).decode("utf-8")
 
-                            print(f"✅ Image generated successfully")
+                            print("✅ Image generated successfully")
                             print(f"   Original PNG: {len(base64_data)} chars")
-                            print(
-                                f"   Full JPEG: {len(full_jpeg)} chars ({100 * len(full_jpeg) / len(base64_data):.1f}%)"
-                            )
-                            print(
-                                f"   Thumbnail: {len(thumb_jpeg)} chars ({100 * len(thumb_jpeg) / len(base64_data):.1f}%)"
-                            )
+                            print(f"   Full JPEG: {len(full_jpeg)} chars ({100 * len(full_jpeg) / len(base64_data):.1f}%)")
+                            print(f"   Thumbnail: {len(thumb_jpeg)} chars ({100 * len(thumb_jpeg) / len(base64_data):.1f}%)")
 
-                            return {
+                            result = {
                                 "image_base64": full_jpeg,
                                 "thumbnail_base64": thumb_jpeg,
                                 "prompt": image_description,
+                                "date": target_date,
                             }
+                            if not dry_run:
+                                database.save_daily_picture(
+                                    user_id=user_id,
+                                    date=target_date,
+                                    image_base64=full_jpeg,
+                                    prompt=image_description,
+                                    thumbnail_base64=thumb_jpeg,
+                                )
+                            return result
                         except Exception as e:
                             print(f"⚠️ JPEG conversion failed: {e}, using original PNG")
-                            return {
+                            result = {
                                 "image_base64": base64_data,
                                 "thumbnail_base64": base64_data,  # Fallback to full image
                                 "prompt": image_description,
+                                "date": target_date,
                             }
+                            if not dry_run:
+                                database.save_daily_picture(
+                                    user_id=user_id,
+                                    date=target_date,
+                                    image_base64=base64_data,
+                                    prompt=image_description,
+                                    thumbnail_base64=base64_data,
+                                )
+                            return result
 
             if attempt < config.IMAGE_RETRY_MAX_ATTEMPTS:
-                print(f"⚠️ No image in response, retrying...")
+                print("⚠️ No image in response, retrying...")
                 import time
 
                 time.sleep(2)
                 continue
-            return {"image_base64": None, "error": "No image in response"}
+            return {"image_base64": None, "error": "No image in response", "date": target_date}
 
         except Exception as e:
             print(f"❌ Exception on attempt {attempt}: {e}")
             if attempt < config.IMAGE_RETRY_MAX_ATTEMPTS:
-                print(f"⏳ Retrying in 2 seconds...")
+                print("⏳ Retrying in 2 seconds...")
                 import time
 
                 time.sleep(2)
                 continue
-            return {"image_base64": None, "error": str(e)}
+            return {"image_base64": None, "error": str(e), "date": target_date}
 
-    return {"image_base64": None, "error": "All retry attempts failed"}
+    return {"image_base64": None, "error": "All retry attempts failed", "date": target_date}
+
+
+@session_def(
+    name="Generate Daily Picture",
+    description="Generate an artistic image based on user's daily notes",
+    params={
+        "user_id": {"type": "int"},
+        "target_date": {"type": "str"},  # Optional: YYYY-MM-DD format
+        "notes_override": {"type": "str"},
+        "dry_run": {"type": "bool"},
+        "skip_if_exists": {"type": "bool"},
+    },
+    category="Creative",
+)
+def generate_daily_picture(
+    user_id: int,
+    target_date: str = None,
+    notes_override: str = None,
+    dry_run: bool = True,
+    skip_if_exists: bool = False,
+    timezone: str = "Asia/Shanghai",
+):
+    """
+    Generate an image for a specific date.
+
+    Defaults to dry_run=True so the caller decides whether to persist.
+    """
+    result = _generate_picture_for_date(
+        user_id=user_id,
+        target_date=target_date,
+        timezone=timezone,
+        notes_override=notes_override,
+        skip_if_exists=skip_if_exists,
+        dry_run=dry_run,
+    )
+    # PolyCLI sessions should fail loudly if no image produced
+    if result.get("skipped"):
+        raise ValueError(result.get("reason") or "Generation skipped")
+    if not result.get("image_base64"):
+        raise ValueError(result.get("error") or "Generation returned no image")
+    return result
 
 
 # ========== FastAPI Application ==========
@@ -878,7 +946,14 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
-    user: dict
+
+
+class GeneratePictureRequest(BaseModel):
+    target_date: Optional[str] = None
+    notes_override: Optional[str] = None
+    dry_run: bool = False
+    skip_if_exists: bool = False
+    timezone: Optional[str] = "Asia/Shanghai"
 
 
 class ImportDataRequest(BaseModel):
@@ -1447,6 +1522,29 @@ def get_pictures(limit: int = 30, current_user: dict = Depends(get_current_user)
     user_id = current_user["user_id"]
     pictures = database.get_daily_pictures(user_id, limit)
     return {"pictures": pictures}
+
+
+@app.post("/api/pictures/generate")
+def generate_picture_endpoint(
+    request: GeneratePictureRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Generate a picture for a specific date.
+    - If dry_run=True, returns the image but does not save.
+    - If skip_if_exists=True, returns existing image without regenerating.
+    """
+    user_id = current_user["user_id"]
+    tz = request.timezone or "Asia/Shanghai"
+    result = _generate_picture_for_date(
+        user_id=user_id,
+        target_date=request.target_date,
+        timezone=tz,
+        notes_override=request.notes_override,
+        skip_if_exists=request.skip_if_exists,
+        dry_run=request.dry_run,
+    )
+    return result
 
 @app.get("/api/pictures/range")
 def get_pictures_range(

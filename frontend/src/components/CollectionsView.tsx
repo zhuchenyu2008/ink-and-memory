@@ -783,7 +783,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
 
     try {
       const { generateDailyPicture, saveDailyPicture } = await import('../api/voiceApi');
-      const { image_base64, thumbnail_base64, prompt } = await generateDailyPicture();
+      const { image_base64, thumbnail_base64, prompt } = await generateDailyPicture(dateStr, timezone);
 
       if (!image_base64) {
         alert('No notes found to generate an image. Please write and save entries first.');
@@ -807,7 +807,8 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
       });
     } catch (error) {
       console.error('Image generation failed:', error);
-      alert('Failed to generate image. Please try again.');
+      const message = error instanceof Error ? error.message : 'Failed to generate image. Please try again.';
+      alert(message);
     } finally {
       setGeneratingForDate(null);
     }

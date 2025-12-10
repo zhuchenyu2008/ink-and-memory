@@ -295,8 +295,11 @@ export async function analyzePatterns(): Promise<any[]> {
 /**
  * Generate a daily picture based on user's notes (PolyCLI direct call)
  */
-export async function generateDailyPicture(): Promise<{ image_base64: string; thumbnail_base64?: string; prompt: string }> {
+export async function generateDailyPicture(targetDate?: string, timezone?: string): Promise<{ image_base64: string; thumbnail_base64?: string; prompt: string; date?: string }> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+  const params: Record<string, any> = {};
+  if (targetDate) params.target_date = targetDate;
+  if (timezone) params.timezone = timezone;
 
   const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
     method: 'POST',
@@ -306,7 +309,7 @@ export async function generateDailyPicture(): Promise<{ image_base64: string; th
     },
     body: JSON.stringify({
       session_id: 'generate_daily_picture',
-      params: { },
+      params,
       timeout: 60
     })
   });
@@ -317,15 +320,17 @@ export async function generateDailyPicture(): Promise<{ image_base64: string; th
     throw new Error(data.error || 'Image generation failed');
   }
 
-  if (data.result?.image_base64) {
+  const res: any = data.result || {};
+  if (res.image_base64) {
     return {
-      image_base64: data.result.image_base64,
-      thumbnail_base64: data.result.thumbnail_base64,
-      prompt: data.result.prompt || 'Generated from your notes'
+      image_base64: res.image_base64,
+      thumbnail_base64: res.thumbnail_base64,
+      prompt: res.prompt || 'Generated from your notes',
+      date: res.date
     };
   }
 
-  throw new Error('Image generation failed - no image in response');
+  throw new Error(res.error || res.reason || 'Image generation failed - no image in response');
 }
 
 // ========== Authenticated Endpoints (require login) ==========

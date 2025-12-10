@@ -19,7 +19,7 @@ from polycli import PolyAgent
 from stateless_analyzer import analyze_stateless
 from speech_recognition import init_speech_recognition
 import config
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 # Import database and auth modules
@@ -892,6 +892,9 @@ class ImportDataRequest(BaseModel):
     analysisReports: Optional[str] = None
     oldDocument: Optional[str] = None
 
+class SessionBatchRequest(BaseModel):
+    ids: List[str]
+
 
 # ========== Auth Dependency ==========
 
@@ -1291,6 +1294,20 @@ def list_sessions(timezone: str = "Asia/Shanghai", current_user: dict = Depends(
         enriched.append({**s, "date_key": date_key})
 
     return {"sessions": enriched}
+
+@app.post("/api/sessions/batch")
+def get_sessions_batch(payload: SessionBatchRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Fetch multiple sessions (with editor_state) in a single request.
+    """
+    user_id = current_user["user_id"]
+    session_ids = payload.ids or []
+
+    if not session_ids:
+        return {"sessions": []}
+
+    sessions = database.get_sessions_batch(user_id, session_ids)
+    return {"sessions": sessions}
 
 @app.get("/api/sessions/aggregate")
 def get_sessions_aggregate(timezone: str = "Asia/Shanghai", current_user: dict = Depends(get_current_user)):

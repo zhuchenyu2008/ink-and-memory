@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { getDateLocale } from '../i18n';
 import { extractFirstLine } from '../utils/calendarStorage';
-import { loadSessionsGroupedByDate } from '../utils/sessionGrouping';
+import { getLocalDayKey } from '../utils/timezone';
 
 // @@@ TypeScript interfaces
 interface TimelineDay {
@@ -27,6 +27,15 @@ type TimelinePicture = {
 interface TimelineEntryData {
   picture?: TimelinePicture;
   comments: Commentor[];
+}
+
+interface SessionSummary {
+  id: string;
+  date_key?: string | null;
+  first_line?: string;
+  name?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface CollectionsViewProps {
@@ -407,6 +416,8 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
   const [textByDate, setTextByDate] = useState<Map<string, string>>(new Map());
   const [firstLineByDate, setFirstLineByDate] = useState<Map<string, string>>(new Map());
   const [pictures, setPictures] = useState<TimelinePicture[]>([]);
+  const [sessionSummaries, setSessionSummaries] = useState<SessionSummary[]>([]);
+  const [datesWithSessions, setDatesWithSessions] = useState<Set<string>>(new Set());
   const [generatingForDate, setGeneratingForDate] = useState<string | null>(null);
   const [viewingImage, setViewingImage] = useState<{ base64: string; full_base64?: string; prompt: string; date: string; } | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -415,63 +426,78 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
   const allTimelineDays = useMemo(() => generateTimelineDays(), []);
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadTimelineData = async () => {
+      setInitialLoading(true);
+      setStarredComments([]);
+      setAllCommentsByDate(new Map());
+      setTextByDate(new Map());
+      setFirstLineByDate(new Map());
+      setDatesWithSessions(new Set());
+      setPictures([]);
+
       if (isAuthenticated) {
         try {
-          const { listSessions, getSession } = await import('../api/voiceApi');
-          const groupedEntries = await loadSessionsGroupedByDate(() => listSessions(timezone), getSession, {
-            requireName: true,
-            timezone
-          });
+          const { listSessions, getDailyPictures } = await import('../api/voiceApi');
+          const sessions: SessionSummary[] = await listSessions(timezone);
+          if (cancelled) return;
 
-          const allStarred: Commentor[] = [];
-          const commentsByDate = new Map<string, Commentor[]>();
-          const textByDateMap = new Map<string, string>();
+          setSessionSummaries(sessions);
+
           const firstLineMap = new Map<string, string>();
-
-          Object.entries(groupedEntries).forEach(([dateKey, entries]) => {
-            if (entries.length > 0 && !firstLineMap.has(dateKey)) {
-              firstLineMap.set(dateKey, entries[0].firstLine);
-            }
-
-            entries.forEach(entry => {
-              const state = entry.state;
-              if (!state) return;
-
-              const comments = state.commentors || [];
-              const starred = comments.filter((c: Commentor) => c.feedback === 'star');
-              allStarred.push(...starred);
-
-              comments.filter((c: Commentor) => c.appliedAt).forEach((comment: Commentor) => {
-                const commentDate = new Date(comment.appliedAt || comment.computedAt);
-                const date = getLocalDateString(commentDate);
-                if (!commentsByDate.has(date)) {
-                  commentsByDate.set(date, []);
-                }
-                commentsByDate.get(date)!.push(comment);
-              });
-
-              const text = state.cells
-                ?.filter((c: any) => c.type === 'text')
-                .map((c: any) => c.content)
-                .join(' ')
-                .trim();
-
-              if (text) {
-                const existingText = textByDateMap.get(dateKey) || '';
-                textByDateMap.set(dateKey, existingText ? `${existingText} ${text}` : text);
+          const dates = new Set<string>();
+          sessions.forEach((session) => {
+            const dateKey = session.date_key;
+            if (dateKey) {
+              dates.add(dateKey);
+              if (!firstLineMap.has(dateKey)) {
+                const line = session.first_line || session.name || 'Untitled';
+                firstLineMap.set(dateKey, line);
               }
-            });
+            }
           });
 
-          setStarredComments(allStarred);
-          setAllCommentsByDate(commentsByDate);
-          setTextByDate(textByDateMap);
-          setFirstLineByDate(firstLineMap);
+          if (!cancelled) {
+            setFirstLineByDate(firstLineMap);
+            setDatesWithSessions(dates);
+          }
+
+          try {
+            const dbPictures = await getDailyPictures(30);
+            if (!cancelled) {
+              const formattedPictures = dbPictures.map((p: any) => ({
+                date: p.date,
+                base64: p.base64,
+                prompt: p.prompt || ''
+              }));
+              setPictures(formattedPictures);
+            }
+          } catch (error) {
+            console.error('Failed to load pictures from database:', error);
+            if (!cancelled) {
+              const savedPictures = localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES);
+              if (savedPictures) {
+                try {
+                  const parsed = JSON.parse(savedPictures);
+                  const thumbnailsOnly = parsed.map((p: any) => ({
+                    date: p.date,
+                    base64: p.base64,
+                    prompt: p.prompt
+                  }));
+                  setPictures(thumbnailsOnly);
+                } catch (e) {
+                  console.error('Failed to load pictures:', e);
+                }
+              }
+            }
+          }
         } catch (error) {
-          console.error('Failed to load comments from database:', error);
+          console.error('Failed to load timeline data:', error);
+          setSessionSummaries([]);
         }
       } else {
+        setSessionSummaries([]);
         const savedState = localStorage.getItem(STORAGE_KEYS.EDITOR_STATE);
         if (savedState) {
           try {
@@ -511,36 +537,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
           setTextByDate(new Map());
           setFirstLineByDate(new Map());
         }
-      }
 
-      if (isAuthenticated) {
-        try {
-          const { getDailyPictures } = await import('../api/voiceApi');
-          const dbPictures = await getDailyPictures(30);
-          const formattedPictures = dbPictures.map(p => ({
-            date: p.date,
-            base64: p.base64,
-            prompt: p.prompt || ''
-          }));
-          setPictures(formattedPictures);
-        } catch (error) {
-          console.error('Failed to load pictures from database:', error);
-          const savedPictures = localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES);
-          if (savedPictures) {
-            try {
-              const parsed = JSON.parse(savedPictures);
-              const thumbnailsOnly = parsed.map((p: any) => ({
-                date: p.date,
-                base64: p.base64,
-                prompt: p.prompt
-              }));
-              setPictures(thumbnailsOnly);
-            } catch (e) {
-              console.error('Failed to load pictures:', e);
-            }
-          }
-        }
-      } else {
         const savedPictures = localStorage.getItem(STORAGE_KEYS.DAILY_PICTURES);
         if (savedPictures) {
           try {
@@ -557,23 +554,44 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
         }
       }
 
-      setInitialLoading(false);
+      if (!cancelled) {
+        setInitialLoading(false);
+      }
     };
 
     loadTimelineData();
-  }, [isAuthenticated, timezone, dateLocale]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, timezone, dateLocale, allTimelineDays]);
 
   // @@@ Group items by date
   const timelineByDate = useMemo(() => {
     const map = new Map<string, TimelineEntryData>();
 
-    starredComments.forEach(comment => {
-      const commentDate = new Date(comment.appliedAt || comment.computedAt);
-      const date = getLocalDateString(commentDate);
+    datesWithSessions.forEach(date => {
       if (!map.has(date)) {
         map.set(date, { comments: [] });
       }
-      map.get(date)!.comments.push(comment);
+    });
+
+    allCommentsByDate.forEach((comments, date) => {
+      const entry = map.get(date) || { comments: [] };
+      entry.comments = comments;
+      map.set(date, entry);
+    });
+
+    starredComments.forEach(comment => {
+      const commentDate = new Date(comment.appliedAt || comment.computedAt);
+      const date = getLocalDateString(commentDate);
+      const hasFullComments = allCommentsByDate.has(date);
+      if (!map.has(date)) {
+        map.set(date, { comments: [] });
+      }
+      if (!hasFullComments) {
+        map.get(date)!.comments.push(comment);
+      }
     });
 
     pictures.forEach(pic => {
@@ -585,7 +603,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
     });
 
     return map;
-  }, [starredComments, pictures]);
+  }, [datesWithSessions, allCommentsByDate, starredComments, pictures]);
 
   // @@@ Set initial scroll position to show today's row centered
   useLayoutEffect(() => {
@@ -614,26 +632,33 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
 
     try {
       if (isAuthenticated) {
-        const { listSessions, getSession } = await import('../api/voiceApi');
-        const sessions = await listSessions(timezone);
+        const sessionsForDate = sessionSummaries.filter(session => session.date_key === dateStr);
+
+        if (sessionsForDate.length === 0) {
+          setAllCommentsByDate(prev => {
+            const next = new Map(prev);
+            next.set(dateStr, []);
+            return next;
+          });
+          return;
+        }
+
+        const { getSessionsBatch } = await import('../api/voiceApi');
+        const batch = await getSessionsBatch(sessionsForDate.map(s => s.id));
         const commentsForDate: Commentor[] = [];
 
-        for (const session of sessions) {
-          try {
-            const fullSession = await getSession(session.id);
-            const comments = fullSession.editor_state?.commentors || [];
+        batch.forEach((session: any) => {
+          const comments = session.editor_state?.commentors || [];
 
-            comments.filter((c: Commentor) => c.appliedAt).forEach((comment: Commentor) => {
-              const commentDate = new Date(comment.appliedAt || comment.computedAt);
-              const date = getLocalDateString(commentDate);
-              if (date === dateStr) {
-                commentsForDate.push(comment);
-              }
-            });
-          } catch (err) {
-            console.error(`Failed to load session ${session.id}:`, err);
-          }
-        }
+          comments.filter((c: Commentor) => c.appliedAt).forEach((comment: Commentor) => {
+            const rawTs = comment.appliedAt || comment.computedAt;
+            const commentDate = getLocalDayKey(rawTs, timezone)
+              || getLocalDateString(new Date(rawTs));
+            if (commentDate === dateStr) {
+              commentsForDate.push(comment);
+            }
+          });
+        });
 
         setAllCommentsByDate(prev => {
           const next = new Map(prev);
@@ -1095,7 +1120,9 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
                 color: '#888'
               }}>
                 {(() => {
-                  const commentCount = timelineByDate.get(viewingImage.date)?.comments?.length || 0;
+                  const commentCount =
+                    (allCommentsByDate.get(viewingImage.date)?.length)
+                    ?? (timelineByDate.get(viewingImage.date)?.comments?.length || 0);
                   return t('timeline.entryCount', { count: commentCount });
                 })()}
               </div>

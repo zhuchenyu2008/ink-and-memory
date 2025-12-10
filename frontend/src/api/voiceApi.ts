@@ -444,6 +444,27 @@ export async function getSession(sessionId: string): Promise<any> {
 }
 
 /**
+ * Fetch multiple sessions (with editor_state) in a single request.
+ */
+export async function getSessionsBatch(sessionIds: string[]): Promise<any[]> {
+  if (!sessionIds || sessionIds.length === 0) return [];
+
+  const response = await fetch(`${API_BASE}/api/sessions/batch`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ ids: sessionIds })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Batch session fetch failed');
+  }
+
+  const data = await response.json();
+  return data.sessions;
+}
+
+/**
  * Delete a session
  */
 export async function deleteSession(sessionId: string): Promise<void> {

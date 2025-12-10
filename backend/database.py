@@ -1070,6 +1070,39 @@ def get_session(user_id: int, session_id: str):
     finally:
         db.close()
 
+def get_sessions_batch(user_id: int, session_ids: list[str]) -> list[dict]:
+    """Fetch multiple sessions in a single query (includes full editor_state)."""
+    if not session_ids:
+        return []
+
+    db = get_db()
+    try:
+        placeholders = ",".join("?" for _ in session_ids)
+        query = f"""
+        SELECT id, name, editor_state_json, created_at, updated_at
+        FROM user_sessions
+        WHERE user_id = ? AND id IN ({placeholders})
+        """
+        rows = db.execute(query, (user_id, *session_ids)).fetchall()
+        sessions = []
+        for row in rows:
+            try:
+                state = json.loads(row["editor_state_json"])
+            except Exception:
+                state = {}
+            sessions.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "editor_state": state,
+                }
+            )
+        return sessions
+    finally:
+        db.close()
+
 def list_sessions(user_id: int):
     """List all sessions for a user with a lightweight preview."""
     db = get_db()

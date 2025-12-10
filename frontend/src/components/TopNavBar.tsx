@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
-  currentView: 'writing' | 'settings' | 'timeline' | 'analysis' | 'decks' | 'friends';
-  onViewChange: (view: 'writing' | 'settings' | 'timeline' | 'analysis' | 'decks' | 'friends') => void;
+  currentView: 'writing' | 'settings' | 'timeline' | 'analysis' | 'decks';
+  onViewChange: (view: 'writing' | 'settings' | 'timeline' | 'analysis' | 'decks') => void;
 }
 
 export default function LeftSidebar({ currentView, onViewChange }: Props) {
@@ -151,24 +151,6 @@ export default function LeftSidebar({ currentView, onViewChange }: Props) {
           }}
         >
           {t('nav.decks')}
-        </button>
-
-        <button
-          onClick={() => onViewChange('friends')}
-          style={buttonStyle(currentView === 'friends')}
-          title={t('nav.friends')}
-          onMouseEnter={e => {
-            if (currentView !== 'friends') {
-              e.currentTarget.style.background = 'rgba(44, 44, 44, 0.04)';
-            }
-          }}
-          onMouseLeave={e => {
-            if (currentView !== 'friends') {
-              e.currentTarget.style.background = 'transparent';
-            }
-          }}
-        >
-          {t('nav.friends') || 'Friends'}
         </button>
       </div>
 

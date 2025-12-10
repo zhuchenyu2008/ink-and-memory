@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   listDecks,
@@ -16,36 +15,8 @@ import {
   type Deck,
   type Voice
 } from '../api/voiceApi';
-import {
-  FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye,
-  FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass,
-  FaChevronDown, FaChevronRight
-} from 'react-icons/fa';
-
-// @@@ Display mappings (text name → visual)
-const COLORS = {
-  'blue': { hex: '#4a90e2', label: 'Blue' },
-  'purple': { hex: '#9b59b6', label: 'Purple' },
-  'pink': { hex: '#e91e63', label: 'Pink' },
-  'green': { hex: '#27ae60', label: 'Green' },
-  'yellow': { hex: '#f39c12', label: 'Yellow' }
-};
-
-// @@@ Icon map with React Icons
-const iconMap = {
-  brain: FaBrain,
-  heart: FaHeart,
-  question: FaQuestion,
-  cloud: FaCloud,
-  masks: FaTheaterMasks,
-  eye: FaEye,
-  fist: FaFistRaised,
-  lightbulb: FaLightbulb,
-  shield: FaShieldAlt,
-  wind: FaWind,
-  fire: FaFire,
-  compass: FaCompass,
-};
+import DeckEditorModal from './DeckEditorModal';
+import { COLORS, iconMap } from './deckVisuals';
 
 interface Props {
   onUpdate?: () => void;
@@ -58,16 +29,14 @@ export default function DeckManager({ onUpdate }: Props) {
   ), []);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [communityDecks, setCommunityDecks] = useState<Deck[]>([]);
-  const [expandedDecks, setExpandedDecks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingVoice, setEditingVoice] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<'name' | 'prompt' | null>(null);
-  const [iconPickerOpen, setIconPickerOpen] = useState<string | null>(null); // @@@ Track which voice's icon+color picker is open
   const [deckIconPickerOpen, setDeckIconPickerOpen] = useState<string | null>(null); // @@@ Track which deck's icon+color picker is open
   const [creatingDeck, setCreatingDeck] = useState(false);
   const [creatingVoice, setCreatingVoice] = useState<string | null>(null);
   const [publishWarning, setPublishWarning] = useState<string | null>(null);
+  const [selectedVoiceByDeck, setSelectedVoiceByDeck] = useState<Record<string, string | null>>({});
+  const [activeDeckId, setActiveDeckId] = useState<string | null>(null);
 
   // @@@ Scroll position preservation
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -76,6 +45,33 @@ export default function DeckManager({ onUpdate }: Props) {
     loadDecks();
     loadCommunityDecks();
   }, []);
+
+  useEffect(() => {
+    setSelectedVoiceByDeck(prev => {
+      let changed = false;
+      const next = { ...prev };
+
+      decks.forEach((deck) => {
+        const voiceIds = deck.voices?.map(v => v.id) || [];
+        const currentSelection = next[deck.id];
+
+        if (voiceIds.length === 0) {
+          if (currentSelection !== null) {
+            next[deck.id] = null;
+            changed = true;
+          }
+          return;
+        }
+
+        if (!currentSelection || !voiceIds.includes(currentSelection)) {
+          next[deck.id] = voiceIds[0];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [decks]);
 
   async function loadDecks(preserveScroll = false) {
     // @@@ Save scroll position before reload
@@ -123,15 +119,7 @@ export default function DeckManager({ onUpdate }: Props) {
   }
 
   function toggleDeck(deckId: string) {
-    setExpandedDecks(prev => {
-      const next = new Set(prev);
-      if (next.has(deckId)) {
-        next.delete(deckId);
-      } else {
-        next.add(deckId);
-      }
-      return next;
-    });
+    setActiveDeckId(deckId);
   }
 
   async function handleForkDeck(deckId: string) {
@@ -203,7 +191,6 @@ export default function DeckManager({ onUpdate }: Props) {
     try {
       await updateVoice(voiceId, data);
       await loadDecks(true);
-      setEditingVoice(null);
       onUpdate?.();
     } catch (err: any) {
       alert(`Failed to update voice: ${err.message}`);
@@ -241,7 +228,7 @@ export default function DeckManager({ onUpdate }: Props) {
         color: 'blue'
       });
       await loadDecks(true);
-      setExpandedDecks(prev => new Set([...prev, newDeck.deck_id]));
+      setActiveDeckId(newDeck.deck_id);
       onUpdate?.();
     } catch (err: any) {
       alert(`Failed to create deck: ${err.message}`);
@@ -253,13 +240,14 @@ export default function DeckManager({ onUpdate }: Props) {
   async function handleAddVoice(deckId: string) {
     setCreatingVoice(deckId);
     try {
-      await createVoice({
+      const { voice_id: newVoiceId } = await createVoice({
         deck_id: deckId,
         name: 'New Voice',
         system_prompt: 'You are a helpful assistant.',
         icon: 'brain',
         color: 'blue'
       });
+      setSelectedVoiceByDeck(prev => ({ ...prev, [deckId]: newVoiceId }));
       await loadDecks(true);
       onUpdate?.();
     } catch (err: any) {
@@ -367,6 +355,8 @@ export default function DeckManager({ onUpdate }: Props) {
     );
   }
 
+  const activeDeck = decks.find(d => d.id === activeDeckId) || null;
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f8f0e6', overflow: 'hidden' }}>
       {/* Scrollable Content with embedded header */}
@@ -442,278 +432,108 @@ export default function DeckManager({ onUpdate }: Props) {
             {t('deck.sections.myDecks')}
           </h3>
 
-          {/* User's Decks */}
-          {decks.map(deck => {
-            const isExpanded = expandedDecks.has(deck.id);
-            const isSystem = !!deck.is_system; // @@@ Convert to boolean to prevent React from rendering "0"
-            const Icon = iconMap[deck.icon as keyof typeof iconMap] || FaBrain;
-            const colorHex = COLORS[deck.color as keyof typeof COLORS]?.hex || '#4a90e2';
-            const voiceCount = deck.voice_count || deck.voices?.length || 0;
-            const voiceCountLabel = t('deck.labels.voiceCount', { count: voiceCount });
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+            gap: 14
+          }}>
+            {decks.map(deck => {
+              const isSystem = !!deck.is_system;
+              const Icon = iconMap[deck.icon as keyof typeof iconMap] || iconMap.brain;
+              const colorHex = COLORS[deck.color as keyof typeof COLORS]?.hex || '#4a90e2';
+              const voiceCount = deck.voice_count || deck.voices?.length || 0;
+              const voiceCountLabel = t('deck.labels.voiceCount', { count: voiceCount });
 
-            return (
-              <div
-                key={deck.id}
-                style={{
-                  background: '#fff',
-                  border: `2px solid ${isSystem ? '#d0c4b0' : colorHex}`,
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  transition: 'all 0.3s'
-                }}
-              >
-                {/* Deck Header */}
+              return (
                 <div
+                  key={deck.id}
                   onClick={() => toggleDeck(deck.id)}
                   style={{
-                    padding: 20,
-                    background: isSystem ? '#f9f9f9' : '#fafafa',
+                    background: '#fff',
+                    border: `2px solid ${isSystem ? '#d0c4b0' : colorHex}`,
+                    borderRadius: 10,
+                    boxShadow: '0 3px 10px rgba(0,0,0,0.08)',
+                    padding: 12,
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: 16,
-                    transition: 'background 0.2s',
-                    cursor: 'pointer'
+                    flexDirection: 'column',
+                    gap: 10,
+                    cursor: 'pointer',
+                    transition: 'transform 0.15s, box-shadow 0.15s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 6px 14px rgba(0,0,0,0.12)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 3px 10px rgba(0,0,0,0.08)';
                   }}
                 >
-                  {/* Expand/Collapse Icon */}
-                  <div
-                    onClick={() => toggleDeck(deck.id)}
-                    style={{ fontSize: 20, color: '#666', cursor: 'pointer' }}
-                  >
-                    {isExpanded ? <FaChevronDown /> : <FaChevronRight />}
-                  </div>
-
-                  {/* Deck Icon with picker */}
-                  <div
-                    style={{ position: 'relative' }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <div
-                      data-deck-icon={deck.id}
+                      style={{ position: 'relative' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div
+                        data-deck-icon={deck.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isSystem) {
+                            setDeckIconPickerOpen(deckIconPickerOpen === deck.id ? null : deck.id);
+                          }
+                        }}
+                        style={{
+                          width: 46,
+                          height: 46,
+                          borderRadius: 23,
+                          background: `linear-gradient(135deg, ${colorHex} 0%, ${colorHex}cc 100%)`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          flexShrink: 0,
+                          boxShadow: `0 3px 8px ${colorHex}40`,
+                          cursor: isSystem ? 'default' : 'pointer',
+                          transition: 'transform 0.2s, box-shadow 0.2s'
+                        }}
+                      >
+                        <Icon size={22} />
+                      </div>
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: 17, fontWeight: 700, color: '#2c2c2c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {deck.name}
+                        </div>
+                        {isSystem && (
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: '#777',
+                            background: '#ededed',
+                            padding: '2px 6px',
+                            borderRadius: 6
+                          }}>
+                            System
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#555', lineHeight: 1.4, maxHeight: 36, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {deck.description || t('deck.labels.noDescription')}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#888' }}>{voiceCountLabel}</div>
+                    </div>
+
+                    <div
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!isSystem) {
-                          setDeckIconPickerOpen(deckIconPickerOpen === deck.id ? null : deck.id);
-                        }
+                        handleToggleDeck(deck.id, deck.enabled);
                       }}
                       style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: 28,
-                        background: `linear-gradient(135deg, ${colorHex} 0%, ${colorHex}cc 100%)`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#fff',
-                        flexShrink: 0,
-                        boxShadow: `0 3px 8px ${colorHex}40`,
-                        cursor: isSystem ? 'default' : 'pointer',
-                        transition: 'transform 0.2s, box-shadow 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isSystem) {
-                          e.currentTarget.style.transform = 'scale(1.1)';
-                          e.currentTarget.style.boxShadow = `0 6px 16px ${colorHex}60`;
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSystem) {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.boxShadow = `0 3px 8px ${colorHex}40`;
-                        }
-                      }}
-                      title={isSystem ? '' : 'Click to change icon'}
-                    >
-                      <Icon size={28} />
-                    </div>
-
-                    {/* Icon Picker Dropdown for Deck - Rendered at top level using portal */}
-                    {deckIconPickerOpen === deck.id && (() => {
-                      const iconBadge = document.querySelector(`[data-deck-icon="${deck.id}"]`) as HTMLElement;
-                      if (!iconBadge) return null;
-                      const rect = iconBadge.getBoundingClientRect();
-
-                      return createPortal(
-                        <>
-                          {/* Transparent overlay to capture clicks outside */}
-                          <div
-                            onClick={() => setDeckIconPickerOpen(null)}
-                            style={{
-                              position: 'fixed',
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              zIndex: 9999
-                            }}
-                          />
-                          {/* Icon & Color picker dropdown */}
-                          <div
-                            style={{
-                              position: 'fixed',
-                              top: rect.bottom + 4,
-                              left: rect.left,
-                              background: '#fff',
-                              border: '2px solid #4a90e2',
-                              borderRadius: 8,
-                              padding: 8,
-                              boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-                              zIndex: 10000,
-                              minWidth: 180
-                            }}
-                          >
-                            {/* Icons Grid */}
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(4, 1fr)',
-                              gap: 4,
-                              marginBottom: 8
-                            }}>
-                              {Object.entries(iconMap).map(([iconName, IconComponent]) => {
-                                const isSelected = deck.icon === iconName;
-                                return (
-                                  <div
-                                    key={iconName}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleUpdateDeck(deck.id, { icon: iconName });
-                                    }}
-                                    style={{
-                                      width: 40,
-                                      height: 40,
-                                      borderRadius: 8,
-                                      background: isSelected ? colorHex : '#f0f0f0',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      color: isSelected ? '#fff' : '#666',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      if (!isSelected) {
-                                        e.currentTarget.style.background = '#e0e0e0';
-                                        e.currentTarget.style.transform = 'scale(1.1)';
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (!isSelected) {
-                                        e.currentTarget.style.background = '#f0f0f0';
-                                        e.currentTarget.style.transform = 'scale(1)';
-                                      }
-                                    }}
-                                    title={iconName}
-                                  >
-                                    <IconComponent size={20} />
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Divider */}
-                            <div style={{
-                              height: 1,
-                              background: '#e0e0e0',
-                              marginBottom: 8
-                            }} />
-
-                            {/* Colors Row */}
-                            <div style={{
-                              display: 'flex',
-                              gap: 6,
-                              justifyContent: 'center'
-                            }}>
-                              {Object.entries(COLORS).map(([colorName, colorData]) => {
-                                const isSelected = deck.color === colorName;
-                                return (
-                                  <div
-                                    key={colorName}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleUpdateDeck(deck.id, { color: colorName });
-                                    }}
-                                    style={{
-                                      width: 28,
-                                      height: 28,
-                                      borderRadius: 14,
-                                      background: colorData.hex,
-                                      cursor: 'pointer',
-                                      border: isSelected ? '3px solid #2c2c2c' : '2px solid #ddd',
-                                      transition: 'all 0.2s',
-                                      boxSizing: 'border-box'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      if (!isSelected) {
-                                        e.currentTarget.style.transform = 'scale(1.15)';
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (!isSelected) {
-                                        e.currentTarget.style.transform = 'scale(1)';
-                                      }
-                                    }}
-                                    title={colorData.label}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </>,
-                        document.body
-                      );
-                    })()}
-                  </div>
-
-                  {/* Deck Info - Display Only */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: '#2c2c2c',
-                      marginBottom: 4
-                    }}>
-                      {deck.name}
-                      {isSystem && (
-                        <span style={{
-                          marginLeft: 12,
-                          fontSize: 12,
-                          fontWeight: 500,
-                          color: '#888',
-                          background: '#e0e0e0',
-                          padding: '2px 8px',
-                          borderRadius: 4
-                        }}>
-                          {t('deck.labels.system')}
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={{
-                      fontSize: 14,
-                      color: '#666'
-                    }}>
-                      {deck.description || t('deck.labels.noDescription')}
-                    </div>
-
-                    <div style={{
-                      fontSize: 12,
-                      color: '#999',
-                      marginTop: 4
-                    }}>
-                      {voiceCountLabel}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }} onClick={(e) => e.stopPropagation()}>
-                    {/* @@@ Deck-level toggle switch */}
-                    <div
-                      onClick={() => handleToggleDeck(deck.id, deck.enabled)}
-                      style={{
-                        width: 50,
-                        height: 26,
-                        borderRadius: 13,
+                        width: 42,
+                        height: 20,
+                        borderRadius: 10,
                         background: deck.enabled ? colorHex : '#ccc',
                         position: 'relative',
                         cursor: 'pointer',
@@ -724,661 +544,91 @@ export default function DeckManager({ onUpdate }: Props) {
                     >
                       <div style={{
                         position: 'absolute',
-                        top: 3,
-                        left: deck.enabled ? 26 : 3,
-                        width: 20,
-                        height: 20,
-                        borderRadius: 10,
+                        top: 2,
+                        left: deck.enabled ? 22 : 2,
+                        width: 16,
+                        height: 16,
+                        borderRadius: 8,
                         background: '#fff',
                         transition: 'left 0.3s',
                         boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                       }} />
                     </div>
+                  </div>
 
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} onClick={(e) => e.stopPropagation()}>
                     {isSystem ? (
                       <button
                         onClick={() => handleForkDeck(deck.id)}
                         style={{
-                          padding: '8px 16px',
+                          padding: '6px 10px',
                           background: colorHex,
                           color: '#fff',
                           border: 'none',
                           borderRadius: 6,
                           cursor: 'pointer',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = `0 4px 12px ${colorHex}60`;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
+                          fontSize: 12,
+                          fontWeight: 600
                         }}
                       >
-                        Fork to My Collection
+                        Fork
                       </button>
                     ) : (
                       <>
-                        {/* @@@ Show sync button if deck has a parent */}
                         {deck.parent_id && (
                           <button
                             onClick={() => handleSyncDeck(deck.id)}
                             style={{
-                              padding: '8px 16px',
+                              padding: '6px 10px',
                               background: '#81b7d2',
                               color: '#fff',
                               border: 'none',
                               borderRadius: 6,
                               cursor: 'pointer',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(129, 183, 210, 0.4)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = 'none';
+                              fontSize: 12,
+                              fontWeight: 600
                             }}
                           >
-                            {t('deck.actions.sync')}
+                            Sync
                           </button>
                         )}
-                        {/* @@@ Publish button for user-owned decks */}
                         <button
                           onClick={() => handlePublishClick(deck)}
                           style={{
-                            padding: '8px 16px',
+                            padding: '6px 10px',
                             background: deck.published ? '#f39c7a' : '#b47ed7',
                             color: '#fff',
                             border: 'none',
                             borderRadius: 6,
                             cursor: 'pointer',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            const color = deck.published ? 'rgba(243, 156, 122, 0.4)' : 'rgba(180, 126, 215, 0.4)';
-                            e.currentTarget.style.boxShadow = `0 4px 12px ${color}`;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = 'none';
+                            fontSize: 12,
+                            fontWeight: 600
                           }}
                         >
-                          {deck.published ? t('deck.actions.unpublish') : t('deck.actions.publish')}
+                          {deck.published ? 'Unpub' : 'Pub'}
                         </button>
                         <button
                           onClick={() => handleDeleteDeck(deck.id)}
                           style={{
-                            padding: '8px 16px',
+                            padding: '6px 10px',
                             background: '#e8956c',
                             color: '#fff',
                             border: 'none',
                             borderRadius: 6,
                             cursor: 'pointer',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(232, 149, 108, 0.4)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = 'none';
+                            fontSize: 12,
+                            fontWeight: 600
                           }}
                         >
-                          {t('deck.actions.delete')}
+                          Delete
                         </button>
                       </>
                     )}
                   </div>
                 </div>
-
-                {/* Voices List (Expanded) */}
-                {isExpanded && (
-                  <div style={{ padding: 20, background: '#fafafa' }}>
-                    {/* @@@ Deck Edit Form (only for user-owned decks) */}
-                    {!isSystem && (
-                      <div style={{
-                        background: '#fff',
-                        border: '2px solid #e0e0e0',
-                        borderRadius: 8,
-                        padding: 16,
-                        marginBottom: 16
-                      }}>
-                        <h4 style={{
-                          margin: '0 0 12px 0',
-                          fontSize: 14,
-                          fontWeight: 600,
-                          color: '#666'
-                        }}>
-                          Deck Settings
-                        </h4>
-
-                        {/* Deck Name Field */}
-                        <div style={{ marginBottom: 12 }}>
-                          <label style={{
-                            display: 'block',
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: '#888',
-                            marginBottom: 4
-                          }}>
-                            Name
-                          </label>
-                          <input
-                            type="text"
-                            defaultValue={deck.name}
-                            onBlur={(e) => {
-                              if (e.target.value !== deck.name) {
-                                handleUpdateDeck(deck.id, { name: e.target.value });
-                              }
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              width: '100%',
-                              padding: '8px 12px',
-                              fontSize: 14,
-                              border: '1px solid #ddd',
-                              borderRadius: 6,
-                              fontFamily: 'inherit',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
-
-                        {/* Deck Description Field */}
-                        <div>
-                          <label style={{
-                            display: 'block',
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: '#888',
-                            marginBottom: 4
-                          }}>
-                            Description
-                          </label>
-                          <textarea
-                            defaultValue={deck.description || ''}
-                            onBlur={(e) => {
-                              if (e.target.value !== deck.description) {
-                                handleUpdateDeck(deck.id, { description: e.target.value });
-                              }
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              width: '100%',
-                              minHeight: 80,
-                              padding: '8px 12px',
-                              fontSize: 14,
-                              border: '1px solid #ddd',
-                              borderRadius: 6,
-                              fontFamily: 'inherit',
-                              resize: 'vertical',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {deck.voices && deck.voices.length > 0 && (
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-                        gap: 16
-                      }}>
-                        {deck.voices.map(voice => {
-                        const VoiceIcon = iconMap[voice.icon as keyof typeof iconMap] || FaBrain;
-                        const voiceColor = COLORS[voice.color as keyof typeof COLORS]?.hex || '#4a90e2';
-                        const isEditing = editingVoice === voice.id;
-
-                        return (
-                          <div
-                            key={voice.id}
-                            style={{
-                              background: '#fff',
-                              border: `2px solid ${voice.enabled ? voiceColor : '#ddd'}`,
-                              borderRadius: 8,
-                              padding: 16,
-                              position: 'relative',
-                              boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-                              transition: 'all 0.2s',
-                              opacity: voice.enabled ? 1 : 0.6
-                            }}
-                          >
-                            {/* Voice Header */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                              {/* @@@ Icon badge with picker */}
-                              <div style={{ position: 'relative' }}>
-                                <div
-                                  data-voice-icon={voice.id}
-                                  onClick={() => {
-                                    if (!isSystem) {
-                                      setIconPickerOpen(iconPickerOpen === voice.id ? null : voice.id);
-                                    }
-                                  }}
-                                  style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 20,
-                                    background: `linear-gradient(135deg, ${voiceColor} 0%, ${voiceColor}cc 100%)`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#fff',
-                                    flexShrink: 0,
-                                    cursor: isSystem ? 'default' : 'pointer',
-                                    transition: 'transform 0.2s, box-shadow 0.2s'
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (!isSystem) {
-                                      e.currentTarget.style.transform = 'scale(1.1)';
-                                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (!isSystem) {
-                                      e.currentTarget.style.transform = 'scale(1)';
-                                      e.currentTarget.style.boxShadow = 'none';
-                                    }
-                                  }}
-                                  title={isSystem ? '' : 'Click to change icon'}
-                                >
-                                  <VoiceIcon size={20} />
-                                </div>
-
-                                {/* Icon & Color Picker Dropdown - Rendered at top level using portal */}
-                                {iconPickerOpen === voice.id && (() => {
-                                  const iconBadge = document.querySelector(`[data-voice-icon="${voice.id}"]`) as HTMLElement;
-                                  if (!iconBadge) return null;
-                                  const rect = iconBadge.getBoundingClientRect();
-
-                                  return createPortal(
-                                    <>
-                                      {/* Transparent overlay to capture clicks outside */}
-                                      <div
-                                        onClick={() => setIconPickerOpen(null)}
-                                        style={{
-                                          position: 'fixed',
-                                          top: 0,
-                                          left: 0,
-                                          right: 0,
-                                          bottom: 0,
-                                          zIndex: 9999
-                                        }}
-                                      />
-                                      {/* Icon & Color picker dropdown */}
-                                      <div
-                                        style={{
-                                          position: 'fixed',
-                                          top: rect.bottom + 4,
-                                          left: rect.left,
-                                          background: '#fff',
-                                          border: '2px solid #4a90e2',
-                                          borderRadius: 8,
-                                          padding: 8,
-                                          boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-                                          zIndex: 10000,
-                                          minWidth: 180
-                                        }}
-                                      >
-                                        {/* Icons Grid */}
-                                        <div style={{
-                                          display: 'grid',
-                                          gridTemplateColumns: 'repeat(4, 1fr)',
-                                          gap: 4,
-                                          marginBottom: 8
-                                        }}>
-                                          {Object.entries(iconMap).map(([iconName, IconComponent]) => {
-                                            const isSelected = voice.icon === iconName;
-                                            return (
-                                              <div
-                                                key={iconName}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handleUpdateVoice(voice.id, { icon: iconName });
-                                                }}
-                                                style={{
-                                                  width: 40,
-                                                  height: 40,
-                                                  borderRadius: 8,
-                                                  background: isSelected ? voiceColor : '#f0f0f0',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'center',
-                                                  color: isSelected ? '#fff' : '#666',
-                                                  cursor: 'pointer',
-                                                  transition: 'all 0.2s'
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                  if (!isSelected) {
-                                                    e.currentTarget.style.background = '#e0e0e0';
-                                                    e.currentTarget.style.transform = 'scale(1.1)';
-                                                  }
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                  if (!isSelected) {
-                                                    e.currentTarget.style.background = '#f0f0f0';
-                                                    e.currentTarget.style.transform = 'scale(1)';
-                                                  }
-                                                }}
-                                                title={iconName}
-                                              >
-                                                <IconComponent size={20} />
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-
-                                        {/* Divider */}
-                                        <div style={{
-                                          height: 1,
-                                          background: '#e0e0e0',
-                                          marginBottom: 8
-                                        }} />
-
-                                        {/* Colors Row */}
-                                        <div style={{
-                                          display: 'flex',
-                                          gap: 6,
-                                          justifyContent: 'center'
-                                        }}>
-                                          {Object.entries(COLORS).map(([colorName, colorData]) => {
-                                            const isSelected = voice.color === colorName;
-                                            return (
-                                              <div
-                                                key={colorName}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handleUpdateVoice(voice.id, { color: colorName });
-                                                }}
-                                                style={{
-                                                  width: 28,
-                                                  height: 28,
-                                                  borderRadius: 14,
-                                                  background: colorData.hex,
-                                                  cursor: 'pointer',
-                                                  border: isSelected ? '3px solid #2c2c2c' : '2px solid #ddd',
-                                                  transition: 'all 0.2s',
-                                                  boxSizing: 'border-box'
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                  if (!isSelected) {
-                                                    e.currentTarget.style.transform = 'scale(1.15)';
-                                                  }
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                  if (!isSelected) {
-                                                    e.currentTarget.style.transform = 'scale(1)';
-                                                  }
-                                                }}
-                                                title={colorData.label}
-                                              />
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    </>,
-                                    document.body
-                                  );
-                                })()}
-                              </div>
-
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                {/* @@@ Inline editing for voice name */}
-                                {!isEditing || editingField !== 'name' ? (
-                                  <div
-                                    onClick={() => {
-                                      if (!isSystem) {
-                                        setEditingVoice(voice.id);
-                                        setEditingField('name');
-                                      }
-                                    }}
-                                    style={{
-                                      fontSize: 16,
-                                      fontWeight: 600,
-                                      color: '#2c2c2c',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap',
-                                      cursor: isSystem ? 'default' : 'pointer',
-                                      transition: 'opacity 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      if (!isSystem) e.currentTarget.style.opacity = '0.7';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (!isSystem) e.currentTarget.style.opacity = '1';
-                                    }}
-                                  >
-                                    {voice.name}
-                                  </div>
-                                ) : (
-                                  <input
-                                    autoFocus
-                                    defaultValue={voice.name}
-                                    onBlur={(e) => {
-                                      handleUpdateVoice(voice.id, { name: e.target.value });
-                                      setEditingVoice(null);
-                                      setEditingField(null);
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        e.currentTarget.blur();
-                                      } else if (e.key === 'Escape') {
-                                        setEditingVoice(null);
-                                        setEditingField(null);
-                                      }
-                                    }}
-                                    style={{
-                                      width: '100%',
-                                      fontSize: 16,
-                                      fontWeight: 600,
-                                      color: '#2c2c2c',
-                                      padding: '4px 8px',
-                                      border: '2px solid #4a90e2',
-                                      borderRadius: 4,
-                                      background: '#f0f8ff'
-                                    }}
-                                  />
-                                )}
-                              </div>
-
-                              {/* @@@ Voice-level toggle switch */}
-                              <div
-                                onClick={() => handleToggleVoice(voice.id, voice.enabled)}
-                                style={{
-                                  width: 40,
-                                  height: 22,
-                                  borderRadius: 11,
-                                  background: voice.enabled ? voiceColor : '#ccc',
-                                  position: 'relative',
-                                  cursor: 'pointer',
-                                  transition: 'background 0.3s',
-                                  flexShrink: 0
-                                }}
-                                title={voice.enabled ? 'Disable voice' : 'Enable voice'}
-                              >
-                                <div style={{
-                                  position: 'absolute',
-                                  top: 3,
-                                  left: voice.enabled ? 21 : 3,
-                                  width: 16,
-                                  height: 16,
-                                  borderRadius: 8,
-                                  background: '#fff',
-                                  transition: 'left 0.3s',
-                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                }} />
-                              </div>
-
-                              {!isSystem && (
-                                <button
-                                  onClick={() => handleDeleteVoice(voice.id)}
-                                  style={{
-                                    background: 'rgba(255, 255, 255, 0.9)',
-                                    border: '1px solid #ddd',
-                                    borderRadius: 4,
-                                    width: 24,
-                                    height: 24,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    fontSize: 12,
-                                    transition: 'all 0.2s'
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = '#fee';
-                                    e.currentTarget.style.borderColor = '#fcc';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.9)';
-                                    e.currentTarget.style.borderColor = '#ddd';
-                                  }}
-                                  title="Delete"
-                                >
-                                  ×
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Voice Prompt with inline editing */}
-                            {!isEditing || editingField !== 'prompt' ? (
-                              <div
-                                onClick={() => {
-                                  if (!isSystem) {
-                                    setEditingVoice(voice.id);
-                                    setEditingField('prompt');
-                                  }
-                                }}
-                                style={{
-                                  fontSize: 12,
-                                  color: '#666',
-                                  lineHeight: 1.6,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 3,
-                                  WebkitBoxOrient: 'vertical',
-                                  cursor: isSystem ? 'default' : 'pointer',
-                                  transition: 'opacity 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (!isSystem) e.currentTarget.style.opacity = '0.7';
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (!isSystem) e.currentTarget.style.opacity = '1';
-                                }}
-                              >
-                                {voice.system_prompt}
-                              </div>
-                            ) : (
-                              <>
-                                <textarea
-                                  autoFocus
-                                  defaultValue={voice.system_prompt}
-                                  onBlur={(e) => {
-                                    handleUpdateVoice(voice.id, { system_prompt: e.target.value });
-                                    setEditingVoice(null);
-                                    setEditingField(null);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Escape') {
-                                      setEditingVoice(null);
-                                      setEditingField(null);
-                                    }
-                                  }}
-                                  style={{
-                                    width: '100%',
-                                    minHeight: '100px',
-                                    fontSize: 12,
-                                    color: '#2c2c2c',
-                                    padding: '8px',
-                                    border: '2px solid #4a90e2',
-                                    borderRadius: 4,
-                                    background: '#f0f8ff',
-                                    fontFamily: 'inherit',
-                                    lineHeight: 1.6,
-                                    resize: 'vertical',
-                                    boxSizing: 'border-box'
-                                  }}
-                                />
-                                <div style={{
-                                  fontSize: 11,
-                                  color: '#999',
-                                  marginTop: 4
-                                }}>
-                                  {voice.system_prompt.length} chars · Press Esc to cancel
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                        })}
-                      </div>
-                    )}
-
-                    {/* @@@ Add Voice button */}
-                    {!isSystem && (
-                      <button
-                        onClick={() => handleAddVoice(deck.id)}
-                        disabled={creatingVoice === deck.id}
-                        style={{
-                          padding: '8px 16px',
-                          marginTop: '16px',
-                          background: 'transparent',
-                          color: '#4a90e2',
-                          border: '1px dashed #4a90e2',
-                          borderRadius: '4px',
-                          cursor: creatingVoice === deck.id ? 'not-allowed' : 'pointer',
-                          fontSize: '12px',
-                          opacity: creatingVoice === deck.id ? 0.6 : 1,
-                          transition: 'all 0.2s',
-                          alignSelf: 'flex-start'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (creatingVoice !== deck.id) {
-                            e.currentTarget.style.background = '#f0f8ff';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (creatingVoice !== deck.id) {
-                            e.currentTarget.style.background = 'transparent';
-                          }
-                        }}
-                      >
-                        {creatingVoice === deck.id ? t('deck.actions.addingVoice') : t('deck.actions.addVoice')}
-                      </button>
-                    )}
-
-                    {/* Empty State */}
-                    {(!deck.voices || deck.voices.length === 0) && (
-                      <div style={{
-                        padding: 32,
-                        textAlign: 'center',
-                        color: '#999',
-                        fontStyle: 'italic'
-                      }}>
-                        No voices in this deck yet
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
           {/* @@@ Community Decks Section */}
           <hr style={{ margin: '32px 0', border: '1px solid #d0c4b0' }} />
@@ -1405,7 +655,7 @@ export default function DeckManager({ onUpdate }: Props) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {communityDecks.map(deck => {
-                const Icon = iconMap[deck.icon as keyof typeof iconMap] || FaBrain;
+            const Icon = iconMap[deck.icon as keyof typeof iconMap] || iconMap.brain;
                 const colorHex = COLORS[deck.color as keyof typeof COLORS]?.hex || '#4a90e2';
 
                 return (
@@ -1500,6 +750,23 @@ export default function DeckManager({ onUpdate }: Props) {
           )}
         </div>
       </div>
+
+      {/* Deck editor modal */}
+      {activeDeck && (
+        <DeckEditorModal
+          deck={activeDeck}
+          isSystem={!!activeDeck.is_system}
+          selectedVoiceId={selectedVoiceByDeck[activeDeck.id] || activeDeck.voices?.[0]?.id || null}
+          onSelectVoice={(voiceId) => setSelectedVoiceByDeck(prev => ({ ...prev, [activeDeck.id]: voiceId }))}
+          onClose={() => setActiveDeckId(null)}
+          creatingVoiceId={creatingVoice}
+          onAddVoice={handleAddVoice}
+          onUpdateDeck={handleUpdateDeck}
+          onUpdateVoice={handleUpdateVoice}
+          onToggleVoice={handleToggleVoice}
+          onDeleteVoice={handleDeleteVoice}
+        />
+      )}
 
       {/* @@@ Publish Warning Modal */}
       {publishWarning && (

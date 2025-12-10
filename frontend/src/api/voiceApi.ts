@@ -144,7 +144,7 @@ export async function analyzeText(text: string, sessionId: string, appliedCommen
         state_prompt: statePrompt || '',
         overlapped_phrases: overlappedPhrases || []
       },
-      timeout: 60
+      timeout: 90
     })
   });
 

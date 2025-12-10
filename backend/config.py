@@ -54,7 +54,7 @@ IMAGE_GENERATION_MODEL = "google/gemini-2.5-flash-image-preview"
 
 # Retry configuration for image generation
 IMAGE_RETRY_MAX_ATTEMPTS = 3
-IMAGE_RETRY_BASE_TIMEOUT = 60  # First attempt: 60s, then +30s per retry
+IMAGE_RETRY_BASE_TIMEOUT = 90  # First attempt: 90s, then +30s per retry
 IMAGE_RETRY_TIMEOUT_INCREMENT = 30
 IMAGE_MAX_TOKENS = 1000
 IMAGE_DESCRIPTION_MAX_TOKENS = 500

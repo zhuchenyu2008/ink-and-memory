@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--token", required=True, help="Bearer token for auth")
     parser.add_argument("--date", dest="target_date", help="Target date YYYY-MM-DD (default: today)")
     parser.add_argument("--notes", dest="notes_override", default="smoke test", help="Override notes text for generation")
-    parser.add_argument("--timeout", type=int, default=60, help="Request timeout seconds")
+    parser.add_argument("--timeout", type=int, default=90, help="Request timeout seconds")
     args = parser.parse_args()
 
     url = f"{args.base_url.rstrip('/')}/api/pictures/generate"

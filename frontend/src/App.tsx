@@ -1,3 +1,4 @@
+// App.tsx
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Commentor, EditorState, TextCell } from './engine/EditorEngine';
@@ -22,7 +23,7 @@ import ChatWidgetUI from './components/ChatWidgetUI';
 import StateChooser from './components/StateChooser';
 import type { VoiceConfig } from './api/voiceApi';
 import { getVoices, getMetaPrompt, getStateConfig } from './utils/voiceStorage';
-import { getDefaultVoices, chatWithVoice, importLocalData, getSuggestion, loadVoicesFromDecks, type VoiceInspiration } from './api/voiceApi';
+import { getDefaultVoices, chatWithVoice, importLocalData, loadVoicesFromDecks } from './api/voiceApi';
 import { useMobile } from './utils/mobileDetect';
 import { CommentGroupCard } from './components/CommentCard';
 import { findNormalizedPhrase } from './utils/textNormalize';
@@ -32,6 +33,9 @@ import RegisterForm from './components/Auth/RegisterForm';
 import { STORAGE_KEYS } from './constants/storageKeys';
 import { getLocalDayKey, getTodayKeyInTimezone } from './utils/timezone';
 import { useSessionLifecycle } from './hooks/useSessionLifecycle';
+import { useInspiration } from './hooks/useInspiration';
+import { InspirationHint } from './components/Editor/InspirationHint';
+import { useComments } from './hooks/useComments';
 
 // @@@ Icon map with React Icons
 const iconMap = {
@@ -135,12 +139,6 @@ export default function App() {
 
   // @@@ Track local text per cell ID for IME composition
   const [composingCells, setComposingCells] = useState<Set<string>>(new Set());
-  const [groupPages, setGroupPages] = useState<Map<string, number>>(new Map());
-  const [cursorPosition, setCursorPosition] = useState<number>(0);
-  const [cursorCellId, setCursorCellId] = useState<string | null>(null);
-
-  // @@@ Mobile-specific: Track which comment is at cursor for popup display
-  const [mobileActiveComment, setMobileActiveComment] = useState<Commentor | null>(null);
 
   // @@@ Chat widget state
   const [dropdownVisible, setDropdownVisible] = useState(false);
@@ -169,24 +167,51 @@ export default function App() {
   const lastUpdateTime = useRef<number>(0);
   const voiceInputNewContent = useRef<string>('');
 
-  const stopTalking = useRef(() => {setUserTalking(false)});
+  const stopTalking = useRef(() => { setUserTalking(false) });
 
-  // @@@ Comment expansion state (for action toolbar + chat dropdown)
-  const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
-  const [commentChatProcessing, setCommentChatProcessing] = useState<Set<string>>(new Set());
+  // @@@ Writing inspiration/suggestion state
+  const {
+    currentInspiration,
+    isDisappearing: inspirationDisappearing,
+    isAppearing: inspirationAppearing,
+    onTextChange: onInspirationTextChange,
+    setTextGetter: setInspirationTextGetter,
+  } = useInspiration();
 
-  // @@@ Writing suggestion state
-  const [currentInspiration, setCurrentInspiration] = useState<VoiceInspiration | null>(null);
-  const [inspirationDisappearing, setInspirationDisappearing] = useState(false);
-  const prevInspirationRef = useRef<VoiceInspiration | null>(null);
-  const [_suggestionSnapshot, setSuggestionSnapshot] = useState<string>('');  // Not used yet
-  const suggestionTimerRef = useRef<number | null>(null);
+  // @@@ Provide text getter to inspiration hook for validation
+  useEffect(() => {
+    setInspirationTextGetter(() => {
+      if (!engineRef.current) return '';
+      const cells = engineRef.current.getState().cells;
+      return cells
+        .filter(c => c.type === 'text')
+        .map(c => (c as TextCell).content)
+        .join('');
+    });
+  }, [setInspirationTextGetter]);
 
-  // @@@ Detect if this is a new inspiration appearing (different from previous)
-  // Only check appearing when NOT disappearing (to avoid conflict)
-  const inspirationAppearing = !inspirationDisappearing &&
-    currentInspiration !== null &&
-    currentInspiration !== prevInspirationRef.current;
+  // @@@ Comment management (grouping, navigation, chat)
+  const {
+    commentGroups,
+    groupPages,
+    handleGroupNavigate,
+    expandedCommentId,
+    setExpandedCommentId,
+    mobileActiveComment,
+    handleCursorChange,
+    handleCommentStar,
+    handleCommentKill,
+    handleCommentChatSend,
+    commentChatProcessing,
+  } = useComments({
+    state,
+    textareaRefs,
+    refsReady,
+    selectedState,
+    stateConfig,
+    isMobile,
+    engineRef,
+  });
 
   // @@@ CRITICAL: Resize textareas then restore scroll position
   // Order matters: resize first (changes content height), then restore scroll
@@ -226,32 +251,6 @@ export default function App() {
     }
   }, [selectedState]);
 
-
-  // @@@ Handle inspiration disappearing animation
-  useEffect(() => {
-    if (inspirationDisappearing) {
-      // Wait for animation to complete (800ms) then clear inspiration
-      const timer = setTimeout(() => {
-        setCurrentInspiration(null);
-        setInspirationDisappearing(false);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [inspirationDisappearing]);
-
-  // @@@ Update prevInspiration ref after render to trigger appearing animation
-  useEffect(() => {
-    if (currentInspiration) {
-      setInspirationDisappearing(false);
-
-      // Wait for next frame to allow CSS transition to detect the change
-      requestAnimationFrame(() => {
-        prevInspirationRef.current = currentInspiration;
-        // @@@ Force re-render to show the appeared state (opacity 1)
-        setRefsReady(prev => prev + 1);
-      });
-    }
-  }, [currentInspiration]);
 
   // @@@ Fetch default voices from backend and load from deck system
   useEffect(() => {
@@ -392,232 +391,6 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [state, refsReady]);
 
-  // @@@ Group comments by 2-row blocks, accounting for widgets between cells
-  const commentGroups = useMemo(() => {
-    const groups = new Map<string, {
-      comments: Commentor[];
-      cellId: string;
-      blockIndex: number;
-      visualLineStart: number;
-      visualLineEnd: number;
-      maxLineWidth: number;
-      centerY: number;
-    }>();
-
-    if (!state) return groups;
-
-    // Get any available textarea ref for style calculations
-    const anyTextarea = Array.from(textareaRefs.current.values())[0];
-    if (!anyTextarea) return groups;
-
-    const maxTextareaWidth = 600;
-
-    const computedStyle = window.getComputedStyle(anyTextarea);
-    const fontSize = parseFloat(computedStyle.fontSize) || 18;
-    const lineHeightRatio = parseFloat(computedStyle.lineHeight) / fontSize || 1.8;
-    const lineHeight = fontSize * lineHeightRatio;
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const fontFamily = computedStyle.fontFamily || 'system-ui, -apple-system, sans-serif';
-      ctx.font = `${fontSize}px ${fontFamily}`;
-    }
-
-    // @@@ Process each text cell separately
-    state.cells.forEach(cell => {
-      if (cell.type !== 'text') return;
-
-      const textCell = cell as TextCell;
-      const text = textCell.content;
-
-      // Calculate visual lines for this cell
-      const charToVisualLine: number[] = new Array(text.length);
-      let currentVisualLine = 0;
-      let currentLineStartIndex = 0;
-
-      for (let i = 0; i < text.length; i++) {
-        charToVisualLine[i] = currentVisualLine;
-
-        if (text[i] === '\n') {
-          currentVisualLine++;
-          currentLineStartIndex = i + 1;
-        } else {
-          const currentLineText = text.substring(currentLineStartIndex, i + 1);
-          const width = ctx ? ctx.measureText(currentLineText).width : currentLineText.length * (fontSize * 0.6);
-
-          if (width > maxTextareaWidth && i > currentLineStartIndex) {
-            currentVisualLine++;
-            currentLineStartIndex = i;
-            charToVisualLine[i] = currentVisualLine;
-          }
-        }
-      }
-
-      // Find comments in this cell
-      state.commentors
-        .filter(c => c.appliedAt)
-        .forEach(commentor => {
-          const index = findNormalizedPhrase(text, commentor.phrase);
-          if (index === -1) return;
-
-          const visualLineNumber = charToVisualLine[index] || 0;
-          const blockIndex = Math.floor(visualLineNumber / 2);
-          const visualLineStart = blockIndex * 2;
-          const visualLineEnd = visualLineStart + 1;
-
-          // Create unique group key per cell
-          const groupKey = `${cell.id}-${blockIndex}`;
-
-          if (!groups.has(groupKey)) {
-            let maxWidth = 0;
-
-            for (let i = 0; i < text.length; i++) {
-              const vLine = charToVisualLine[i];
-              if (vLine === visualLineStart || vLine === visualLineEnd) {
-                let lineEnd = i;
-                while (lineEnd < text.length && charToVisualLine[lineEnd] === vLine) {
-                  lineEnd++;
-                }
-                const lineText = text.substring(i, lineEnd);
-                const width = ctx ? ctx.measureText(lineText).width : lineText.length * (fontSize * 0.6);
-                maxWidth = Math.max(maxWidth, Math.min(width, maxTextareaWidth));
-                i = lineEnd - 1;
-              }
-            }
-
-            const centerY = (visualLineStart + 1) * lineHeight;
-
-            groups.set(groupKey, {
-              comments: [],
-              cellId: cell.id,
-              blockIndex,
-              visualLineStart,
-              visualLineEnd,
-              maxLineWidth: maxWidth,
-              centerY
-            });
-          }
-
-          groups.get(groupKey)!.comments.push(commentor);
-        });
-    });
-
-    return groups;
-  }, [state?.commentors, state, refsReady, selectedState]);
-
-  useEffect(() => {
-    if (!commentGroups) return;
-
-    setGroupPages(prev => {
-      const next = new Map(prev);
-
-      commentGroups.forEach((group, groupKey) => {
-        if (group.comments.length === 0) {
-          next.delete(groupKey);
-          return;
-        }
-
-        const currentPage = prev.get(groupKey) || 0;
-        const maxPage = group.comments.length - 1;
-
-        if (group.comments.length > 1 && currentPage < maxPage) {
-          next.set(groupKey, maxPage);
-        } else if (currentPage > maxPage) {
-          next.set(groupKey, maxPage);
-        }
-      });
-
-      prev.forEach((_, groupKey) => {
-        if (!commentGroups.has(groupKey)) {
-          next.delete(groupKey);
-        }
-      });
-
-      return next;
-    });
-  }, [commentGroups]);
-
-  const handleGroupNavigate = useCallback((groupKey: string, newIndex: number) => {
-    const group = commentGroups.get(groupKey);
-    if (!group) return;
-
-    setGroupPages(prev => {
-      const next = new Map(prev);
-      next.set(groupKey, newIndex);
-      return next;
-    });
-
-    // @@@ Update expanded comment ID ONLY if something in this group is already expanded
-    // This keeps the card expanded while switching between comments
-    const anyExpanded = group.comments.some(c => c.id === expandedCommentId);
-    if (anyExpanded && group.comments[newIndex]) {
-      setExpandedCommentId(group.comments[newIndex].id);
-    }
-  }, [commentGroups, expandedCommentId]);
-
-  // @@@ Cursor-based comment navigation (per-cell)
-  useEffect(() => {
-    if (!state || !cursorCellId) return;
-
-    // Get text for the cell where cursor is
-    const cell = state.cells.find(c => c.id === cursorCellId);
-    if (!cell || cell.type !== 'text') return;
-
-    const cellText = (cell as TextCell).content;
-    const appliedComments = state.commentors.filter(c => c.appliedAt);
-    if (appliedComments.length === 0) {
-      // Clear mobile comment if no comments exist
-      if (isMobile) setMobileActiveComment(null);
-      return;
-    }
-
-    // Find comment at cursor position within this cell's text
-    let foundComment: Commentor | null = null;
-    for (const comment of appliedComments) {
-      const index = findNormalizedPhrase(cellText, comment.phrase);
-      if (index !== -1) {
-        const start = index;
-        const end = index + comment.phrase.length;
-
-        if (cursorPosition >= start && cursorPosition <= end) {
-          foundComment = comment;
-          break;
-        }
-      }
-    }
-
-    // @@@ Mobile: Set active comment for popup display
-    if (isMobile) {
-      setMobileActiveComment(foundComment);
-    }
-
-    if (!foundComment) return;
-
-    // @@@ Desktop: Navigate to comment at cursor position
-    if (!isMobile) {
-      commentGroups.forEach((group, groupKey) => {
-        // Only update groups in the current cell
-        if (group.cellId !== cursorCellId) return;
-
-        const commentIndex = group.comments.findIndex(c => c.id === foundComment!.id);
-        if (commentIndex !== -1) {
-          // Don't navigate if a comment in this group is expanded
-          const groupHasExpanded = group.comments.some(c => c.id === expandedCommentId);
-          if (groupHasExpanded) return;
-
-          setGroupPages(prev => {
-            const next = new Map(prev);
-            if (next.get(groupKey) !== commentIndex) {
-              next.set(groupKey, commentIndex);
-            }
-            return next;
-          });
-        }
-      });
-    }
-  }, [cursorPosition, cursorCellId, state, commentGroups, isMobile, expandedCommentId]);
-
   // @@@ Per-cell text change handler
   const handleTextChange = useCallback((cellId: string, newText: string) => {
     setLocalTexts(prev => {
@@ -625,17 +398,6 @@ export default function App() {
       next.set(cellId, newText);
       return next;
     });
-
-    // @@@ Trigger disappearing animation on typing (if inspiration exists)
-    if (currentInspiration) {
-      setInspirationDisappearing(true);
-    }
-
-    // @@@ Clear existing suggestion timer
-    if (suggestionTimerRef.current) {
-      clearTimeout(suggestionTimerRef.current);
-      suggestionTimerRef.current = null;
-    }
 
     // @@@ Auto-resize textarea to prevent internal scrolling
     const textarea = textareaRefs.current.get(cellId);
@@ -656,46 +418,12 @@ export default function App() {
       engineRef.current.updateTextCell(cellId, newText);
     }
 
-    // @@@ Start 2-second debounce timer for suggestions
-    suggestionTimerRef.current = setTimeout(async () => {
-      // Get all text from all text cells
-      const allText = state?.cells
-        .filter(c => c.type === 'text')
-        .map(c => (c as TextCell).content)
-        .join('') || '';
-
-      if (allText.trim().length < 10) {
-        return;
-      }
-
-      // Capture snapshot for validation
-      const snapshot = allText;
-      setSuggestionSnapshot(snapshot);
-
-      try {
-        const metaPrompt = getMetaPrompt();
-        const statePrompt = selectedState && stateConfig.states[selectedState]
-          ? stateConfig.states[selectedState].prompt
-          : '';
-
-        console.log('🚀 Calling getSuggestion API...');
-        const suggestion = await getSuggestion(allText, metaPrompt, statePrompt);
-
-        // @@@ Validate text hasn't changed since request was sent
-        const currentCells = engineRef.current?.getState().cells;
-        const currentText = currentCells
-          ?.filter(c => c.type === 'text')
-          .map(c => (c as TextCell).content)
-          .join('') || '';
-
-        if (suggestion && currentText === snapshot) {
-          setCurrentInspiration(suggestion);
-        }
-      } catch (error) {
-        console.error('Failed to get inspiration:', error);
-      }
-    }, 2000);
-  }, [composingCells, dropdownVisible, dropdownTriggerCellId, state, selectedState, stateConfig]);
+    const allText = state?.cells
+      .filter(c => c.type === 'text')
+      .map(c => (c as TextCell).content)
+      .join('') || '';
+    onInspirationTextChange(allText, selectedState);
+  }, [composingCells, dropdownVisible, dropdownTriggerCellId, state, selectedState, onInspirationTextChange]);
 
   // @@@ Per-cell composition handlers
   const handleCompositionStart = useCallback((cellId: string) => {
@@ -736,11 +464,6 @@ export default function App() {
         engineRef.current.updateTextCell(cellId, newText);
       }
     }, 0);
-  }, []);
-
-  const handleCursorChange = useCallback((cellId: string, e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-    setCursorPosition(e.currentTarget.selectionStart);
-    setCursorCellId(cellId);
   }, []);
 
   const handleStartFresh = useCallback(() => {
@@ -1225,76 +948,6 @@ export default function App() {
     setGuestMode(true);
   }, []);
 
-  // @@@ Comment interaction handlers
-  const handleCommentStar = useCallback((commentId: string) => {
-    if (!engineRef.current) return;
-    const comment = engineRef.current.getComment(commentId);
-    if (!comment) return;
-
-    // Toggle star (if already starred, unstar)
-    const newFeedback = comment.feedback === 'star' ? undefined : 'star';
-    engineRef.current.setCommentFeedback(commentId, newFeedback as any);
-  }, []);
-
-  const handleCommentKill = useCallback((commentId: string) => {
-    if (!engineRef.current) return;
-    engineRef.current.setCommentFeedback(commentId, 'kill');
-    // Close expansion after killing
-    setExpandedCommentId(null);
-  }, []);
-
-  const handleCommentChatSend = useCallback(async (commentId: string, message: string) => {
-    if (!engineRef.current || !state) return;
-
-    const comment = engineRef.current.getComment(commentId);
-    if (!comment) return;
-
-    // Add user message immediately
-    engineRef.current.addCommentChatMessage(commentId, 'user', message);
-    setCommentChatProcessing(prev => new Set(prev).add(commentId));
-
-    try {
-      // Get all text from text cells
-      const allText = state.cells
-        .filter(c => c.type === 'text')
-        .map(c => (c as TextCell).content)
-        .join('');
-
-      // Get conversation history (excluding the message we just added)
-      const chatHistory = comment.chatHistory?.slice(0, -1) || [];
-
-      const metaPrompt = getMetaPrompt();
-      const statePrompt = selectedState && stateConfig.states[selectedState]
-        ? stateConfig.states[selectedState].prompt
-        : '';
-
-      // @@@ Use voiceId if available (new comments), fall back to voice name (old comments)
-      // Backend loads voice config from database using user_id from JWT
-      const voiceId = comment.voiceId || comment.voice;
-
-      const response = await chatWithVoice(
-        voiceId,
-        chatHistory,
-        message,
-        allText,
-        metaPrompt,
-        statePrompt
-      );
-
-      // Add assistant response
-      engineRef.current.addCommentChatMessage(commentId, 'assistant', response);
-    } catch (error) {
-      console.error('Comment chat failed:', error);
-      engineRef.current.addCommentChatMessage(commentId, 'assistant', 'Sorry, I encountered an error.');
-    } finally {
-      setCommentChatProcessing(prev => {
-        const next = new Set(prev);
-        next.delete(commentId);
-        return next;
-      });
-    }
-  }, [state, voiceConfigs, selectedState, stateConfig]);
-
   // @@@ Handle @ key press for agent dropdown
   const handleKeyDown = useCallback((cellId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === '@' && !composingCells.has(cellId)) {
@@ -1673,7 +1326,7 @@ export default function App() {
           {/* New Session "+" button - top left (desktop only) */}
           {!isMobile && (
             <button
-                onClick={handleNewSessionClick}
+              onClick={handleNewSessionClick}
               title="New Session"
               style={{
                 position: 'fixed',
@@ -1926,47 +1579,12 @@ export default function App() {
                     return null;
                   })}
 
-                  {/* @@@ Inline Inspiration - appears after last text cell with icon and grey text */}
-                  {currentInspiration && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      marginTop: '12px',
-                      color: '#999',
-                      fontSize: '16px',
-                      fontStyle: 'italic',
-                      pointerEvents: 'none',
-                      transition: 'all 0.8s cubic-bezier(0.4, 0, 0.6, 1)',
-                      // @@@ Appearing animation: reverse of disappearing (emerge from paper)
-                      opacity: inspirationDisappearing ? 0 : (inspirationAppearing ? 0 : 1),
-                      transform: inspirationDisappearing
-                        ? 'scale(0.95) translateY(-3px)'
-                        : (inspirationAppearing ? 'scale(0.95) translateY(-3px)' : 'scale(1) translateY(0)'),
-                      filter: inspirationDisappearing
-                        ? 'blur(2px)'
-                        : (inspirationAppearing ? 'blur(2px)' : 'blur(0)'),
-                    }}
-                    >
-                      {/* Voice Icon */}
-                      <div style={{
-                        fontSize: '24px',
-                        flexShrink: 0,
-                        color: '#666'
-                      }}>
-                        {React.createElement(iconMap[currentInspiration.icon as keyof typeof iconMap] || FaBrain)}
-                      </div>
-
-                      {/* Inspiration Text */}
-                      <div>
-                        <span style={{ fontWeight: 'normal', color: '#888' }}>
-                          {currentInspiration.voice}:
-                        </span>
-                        {' '}
-                        {currentInspiration.inspiration}
-                      </div>
-                    </div>
-                  )}
+                  {/* @@@ Inline Inspiration */}
+                  <InspirationHint
+                    inspiration={currentInspiration}
+                    isDisappearing={inspirationDisappearing}
+                    isAppearing={inspirationAppearing}
+                  />
                 </div>
 
                 {/* Comments layer (absolute positioned) - hide on mobile */}
@@ -2003,51 +1621,51 @@ export default function App() {
                     const lineWidthToUse = commentsAligned ? globalMaxLineWidth : group.maxLineWidth;
                     const leftPosition = containerPadding + lineWidthToUse + gap + (lineHeight * 2);  // @@@ Move right 2 line heights
 
-                  // @@@ Position using offsetTop (scroll-independent)
-                  // centerY is already relative to cell's top, so just add:
-                  // - cellOffsetTop: position relative to content container
-                  // - 20px: scroll container top padding
-                  // - 32px: StateChooser fixed height
-                  // - 10.8px: StateChooser marginBottom
-                  // - subtract lineHeight * 2: move up to top of 2-line block
-                  // - subtract lineHeight / 3: additional upward adjustment
-                  const topPosition = cellOffsetTop + group.centerY + 20 + 32 + 10.8 - lineHeight * 2 - (lineHeight / 3);
+                    // @@@ Position using offsetTop (scroll-independent)
+                    // centerY is already relative to cell's top, so just add:
+                    // - cellOffsetTop: position relative to content container
+                    // - 20px: scroll container top padding
+                    // - 32px: StateChooser fixed height
+                    // - 10.8px: StateChooser marginBottom
+                    // - subtract lineHeight * 2: move up to top of 2-line block
+                    // - subtract lineHeight / 3: additional upward adjustment
+                    const topPosition = cellOffsetTop + group.centerY + 20 + 32 + 10.8 - lineHeight * 2 - (lineHeight / 3);
 
-                  // @@@ If expanded, use the expanded comment ID (stable), otherwise use current index
-                  const isExpanded = group.comments.some(c => c.id === expandedCommentId);
-                  const displayedComment = isExpanded
-                    ? group.comments.find(c => c.id === expandedCommentId)!
-                    : group.comments[currentIndex];
-                  const displayedIndex = isExpanded
-                    ? group.comments.findIndex(c => c.id === expandedCommentId)
-                    : currentIndex;
+                    // @@@ If expanded, use the expanded comment ID (stable), otherwise use current index
+                    const isExpanded = group.comments.some(c => c.id === expandedCommentId);
+                    const displayedComment = isExpanded
+                      ? group.comments.find(c => c.id === expandedCommentId)!
+                      : group.comments[currentIndex];
+                    const displayedIndex = isExpanded
+                      ? group.comments.findIndex(c => c.id === expandedCommentId)
+                      : currentIndex;
 
-                  if (!displayedComment) return null;
+                    if (!displayedComment) return null;
 
-                  return (
-                    <CommentGroupCard
-                      key={groupKey}
-                      comments={group.comments}
-                      currentIndex={displayedIndex}
-                      onNavigate={(idx) => handleGroupNavigate(groupKey, idx)}
-                      position={{
-                        top: topPosition,
-                        left: leftPosition
-                      }}
-                      isExpanded={isExpanded}
-                      onToggleExpand={() => {
-                        setExpandedCommentId(prev => {
-                          const anyExpanded = group.comments.some(c => c.id === prev);
-                          if (anyExpanded) return null;
-                          return displayedComment.id;
-                        });
-                      }}
-                      onStar={() => handleCommentStar(displayedComment.id)}
-                      onKill={() => handleCommentKill(displayedComment.id)}
-                      onSendChatMessage={(msg) => handleCommentChatSend(displayedComment.id, msg)}
-                      isChatProcessing={commentChatProcessing.has(displayedComment.id)}
-                      voiceConfigs={voiceConfigs}
-                    />
+                    return (
+                      <CommentGroupCard
+                        key={groupKey}
+                        comments={group.comments}
+                        currentIndex={displayedIndex}
+                        onNavigate={(idx) => handleGroupNavigate(groupKey, idx)}
+                        position={{
+                          top: topPosition,
+                          left: leftPosition
+                        }}
+                        isExpanded={isExpanded}
+                        onToggleExpand={() => {
+                          setExpandedCommentId(prev => {
+                            const anyExpanded = group.comments.some(c => c.id === prev);
+                            if (anyExpanded) return null;
+                            return displayedComment.id;
+                          });
+                        }}
+                        onStar={() => handleCommentStar(displayedComment.id)}
+                        onKill={() => handleCommentKill(displayedComment.id)}
+                        onSendChatMessage={(msg) => handleCommentChatSend(displayedComment.id, msg)}
+                        isChatProcessing={commentChatProcessing.has(displayedComment.id)}
+                        voiceConfigs={voiceConfigs}
+                      />
                     );
                   });
                 })()}

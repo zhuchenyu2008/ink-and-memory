@@ -1,4 +1,5 @@
 /**
+ * EditorEngine.ts
  * Clean editor engine based on trace-based energy model
  */
 
@@ -650,7 +651,7 @@ export class EditorEngine {
     // Always add if non-empty, or if this is the last cell (to allow continued writing)
     const isLastCell = cellIndex === this.state.cells.length - 1;
     const hasNextTextCell = cellIndex + 1 < this.state.cells.length &&
-                           this.state.cells[cellIndex + 1].type === 'text';
+      this.state.cells[cellIndex + 1].type === 'text';
 
     if (afterText.length > 0 || (isLastCell && !hasNextTextCell)) {
       replacementCells.push({

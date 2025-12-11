@@ -9,6 +9,7 @@ __pycache__/
 *.pyc
 AGENTS.md
 operation_book.md
+.operations
 backend/pyrightconfig.json
 
 # Test artifacts

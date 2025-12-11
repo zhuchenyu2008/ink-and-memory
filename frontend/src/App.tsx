@@ -36,6 +36,8 @@ import { useSessionLifecycle } from './hooks/useSessionLifecycle';
 import { useInspiration } from './hooks/useInspiration';
 import { InspirationHint } from './components/Editor/InspirationHint';
 import { useComments } from './hooks/useComments';
+import { useTextCells } from './hooks/useTextCells';
+import { useVoiceInput } from './hooks/useVoiceInput';
 
 // @@@ Icon map with React Icons
 const iconMap = {
@@ -119,8 +121,6 @@ export default function App() {
     engineRef,
     state,
     setState,
-    localTexts,
-    setLocalTexts,
     selectedState,
     setSelectedState,
     userTimezone,
@@ -137,9 +137,6 @@ export default function App() {
     setStateConfig
   });
 
-  // @@@ Track local text per cell ID for IME composition
-  const [composingCells, setComposingCells] = useState<Set<string>>(new Set());
-
   // @@@ Chat widget state
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
@@ -149,25 +146,11 @@ export default function App() {
   // @@@ Warning dialog state
   const [showWarning, setShowWarning] = useState(false);
 
-  // @@@ Per-cell textarea refs for positioning and style calculations
-  const textareaRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);  // @@@ Track scroll container for position preservation
   const savedScrollTop = useRef<number>(0);  // @@@ Save scroll position across re-renders
-  // @@@ Force re-render when refs are ready
-  const [refsReady, setRefsReady] = useState(0);
-  const refsReadyTriggered = useRef(false);
 
   // @@@ Comment alignment state
   const [commentsAligned, setCommentsAligned] = useState(false);
-
-  // @@@ Voice input enabled
-  const [userTalking, setUserTalking] = useState(false);
-  const focusedTextarea = useRef<HTMLTextAreaElement | undefined>(null);
-  const focusedCell = useRef<TextCell | undefined>(null);
-  const lastUpdateTime = useRef<number>(0);
-  const voiceInputNewContent = useRef<string>('');
-
-  const stopTalking = useRef(() => { setUserTalking(false) });
 
   // @@@ Writing inspiration/suggestion state
   const {
@@ -189,6 +172,38 @@ export default function App() {
         .join('');
     });
   }, [setInspirationTextGetter]);
+
+  // @@@ Text cell management (IME, refs, dropdown helpers)
+  const {
+    localTexts,
+    composingCells,
+    textareaRefs,
+    refsReady,
+    setRefsReady,
+    handleTextChange,
+    handleCompositionStart,
+    handleCompositionEnd,
+    handlePaste,
+    handleKeyDown: handleTextCellKeyDown,
+    createTextareaRef,
+  } = useTextCells({
+    engineRef,
+    state,
+    onInspirationTextChange,
+    selectedState,
+    dropdownVisible,
+    dropdownTriggerCellId,
+    onDropdownClose: () => {
+      setDropdownVisible(false);
+      setDropdownTriggerCellId(null);
+    }
+  });
+
+  const { userTalking, handleToggleTalking } = useVoiceInput({
+    engineRef,
+    textareaRefs,
+    isAuthenticated,
+  });
 
   // @@@ Comment management (grouping, navigation, chat)
   const {
@@ -235,7 +250,6 @@ export default function App() {
   useEffect(() => {
     if (currentView === 'writing') {
       // Force re-render to recalculate comment positions
-      // Don't reset refsReadyTriggered - it should remain true after initial mount
       setRefsReady(prev => prev + 1);
     }
   }, [currentView]);
@@ -345,23 +359,6 @@ export default function App() {
     checkMigration();
   }, [isAuthenticated, isLoading]);
 
-  // @@@ Sync localTexts from state when not composing
-  useEffect(() => {
-    if (state) {
-      setLocalTexts(prev => {
-        const next = new Map(prev);
-        state.cells.filter(c => c.type === 'text').forEach(cell => {
-          const textCell = cell as TextCell;
-          // Only update if not composing in this cell
-          if (!composingCells.has(cell.id)) {
-            next.set(cell.id, textCell.content || '');
-          }
-        });
-        return next;
-      });
-    }
-  }, [state, composingCells]);
-
   // @@@ Keep focus on the lone blank text cell (after resets / clears)
   useEffect(() => {
     if (!state) return;
@@ -390,81 +387,6 @@ export default function App() {
     const timer = window.setTimeout(focusEditor, 0);
     return () => window.clearTimeout(timer);
   }, [state, refsReady]);
-
-  // @@@ Per-cell text change handler
-  const handleTextChange = useCallback((cellId: string, newText: string) => {
-    setLocalTexts(prev => {
-      const next = new Map(prev);
-      next.set(cellId, newText);
-      return next;
-    });
-
-    // @@@ Auto-resize textarea to prevent internal scrolling
-    const textarea = textareaRefs.current.get(cellId);
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = textarea.scrollHeight + 'px';
-    }
-
-    // Close dropdown if @ was deleted in the trigger cell
-    if (dropdownVisible && dropdownTriggerCellId === cellId) {
-      if (!newText.includes('@')) {
-        setDropdownVisible(false);
-        setDropdownTriggerCellId(null);
-      }
-    }
-
-    if (!composingCells.has(cellId) && engineRef.current) {
-      engineRef.current.updateTextCell(cellId, newText);
-    }
-
-    const allText = state?.cells
-      .filter(c => c.type === 'text')
-      .map(c => (c as TextCell).content)
-      .join('') || '';
-    onInspirationTextChange(allText, selectedState);
-  }, [composingCells, dropdownVisible, dropdownTriggerCellId, state, selectedState, onInspirationTextChange]);
-
-  // @@@ Per-cell composition handlers
-  const handleCompositionStart = useCallback((cellId: string) => {
-    setComposingCells(prev => new Set(prev).add(cellId));
-  }, []);
-
-  const handleCompositionEnd = useCallback((cellId: string, e: React.CompositionEvent<HTMLTextAreaElement>) => {
-    setComposingCells(prev => {
-      const next = new Set(prev);
-      next.delete(cellId);
-      return next;
-    });
-
-    const newText = e.currentTarget.value;
-    setLocalTexts(prev => {
-      const next = new Map(prev);
-      next.set(cellId, newText);
-      return next;
-    });
-
-    if (engineRef.current) {
-      engineRef.current.updateTextCell(cellId, newText);
-    }
-  }, []);
-
-  const handlePaste = useCallback((cellId: string, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    // @@@ Store element reference (not value!) - browser inserts paste AFTER this handler
-    const textarea = e.currentTarget;
-    setTimeout(() => {
-      // @@@ Now read value - paste has been inserted by browser
-      const newText = textarea.value;
-      setLocalTexts(prev => {
-        const next = new Map(prev);
-        next.set(cellId, newText);
-        return next;
-      });
-      if (engineRef.current) {
-        engineRef.current.updateTextCell(cellId, newText);
-      }
-    }, 0);
-  }, []);
 
   const handleStartFresh = useCallback(() => {
     setShowWarning(true);
@@ -560,202 +482,6 @@ export default function App() {
       }, 2000);
     }
   }, [ensureStateForPersistence, getFirstLineFromState, isAuthenticated, saveSessionToDatabase]);
-
-  useEffect(() => {
-    lastUpdateTime.current = performance.now();
-    if (userTalking) {
-      startTalking();
-    } else {
-      stopTalking.current();
-    }
-
-    async function startTalking() {
-      try {
-        let audioCtx: AudioContext;
-        let stream: MediaStream;
-        let processor: ScriptProcessorNode;
-        let source: MediaStreamAudioSourceNode;
-        let ws: WebSocket;
-        const targetSampleRate = 16000;
-
-        stopTalking.current = function () {
-          document.querySelector('.voice-input-modal')?.remove();
-          processor?.disconnect();
-          source?.disconnect();
-          audioCtx?.close();
-          stream?.getTracks().forEach(t => t.stop());
-          ws?.close();
-        }
-
-        if (!engineRef.current) {
-          throw new Error('engineRef.current is empty');
-        }
-        focusedCell.current = [...engineRef.current.getState().cells].reverse().find(c => c.type === 'text');
-        focusedTextarea.current = textareaRefs.current.get(focusedCell.current?.id ?? '');
-
-        if (!focusedTextarea.current || !focusedCell.current) {
-          throw new Error('Cannot find focused cell');
-        }
-
-        const currentContent = focusedCell.current.content;
-        const cursorPos = focusedTextarea.current.selectionEnd;
-        const contentBefore = currentContent.slice(0, cursorPos);
-        const contentAfter = currentContent.slice(cursorPos);
-
-        let sentences: Array<string> = [];
-        let sentenceId: number = -1;
-
-        function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
-          const buffer = new ArrayBuffer(float32Array.length * 2);
-          const view = new DataView(buffer);
-          let offset = 0;
-          for (let i = 0; i < float32Array.length; i++, offset += 2) {
-            let s = Math.max(-1, Math.min(1, float32Array[i]));
-            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-          }
-          return buffer;
-        }
-
-        function downsampleBuffer(buffer: Float32Array, inSampleRate: number, outSampleRate: number): Float32Array {
-          if (outSampleRate === inSampleRate) {
-            return buffer;
-          }
-          if (outSampleRate > inSampleRate) {
-            console.warn("downsampleBuffer: target sample rate is higher than input, returning original");
-            return buffer;
-          }
-          const sampleRateRatio = inSampleRate / outSampleRate;
-          const newLength = Math.round(buffer.length / sampleRateRatio);
-          const result = new Float32Array(newLength);
-          let offsetResult = 0;
-          let offsetBuffer = 0;
-          while (offsetResult < result.length) {
-            const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
-            let accum = 0, count = 0;
-            for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
-              accum += buffer[i];
-              count++;
-            }
-            result[offsetResult] = count ? accum / count : 0;
-            offsetResult++;
-            offsetBuffer = nextOffsetBuffer;
-          }
-          return result;
-        }
-
-        let voiceInputModal: HTMLDivElement = document.createElement('div');
-        voiceInputModal.className = 'voice-input-modal';
-        document.body.append(voiceInputModal);
-
-        ws = new WebSocket('ws://127.0.0.1:8765/ws/speech-recognition');
-        ws.binaryType = 'arraybuffer';
-        ws.onerror = (e) => {
-          console.error('WS err', e);
-        };
-        ws.onmessage = (evt) => {
-          let now = performance.now();
-          if (now - lastUpdateTime.current < 300) {
-            return;
-          }
-          lastUpdateTime.current = now;
-          try {
-            if (!engineRef.current || !focusedCell.current || !focusedTextarea.current) {
-              throw new Error('Lost focus');
-            }
-
-            const data = JSON.parse(evt.data);
-            let id = data.id;
-            if (id != sentenceId) {
-              sentenceId = id;
-              sentences.push('');
-            }
-            sentences[sentences.length - 1] = data.sentence;
-
-            voiceInputNewContent.current = contentBefore + sentences.join('') + contentAfter;
-            engineRef.current.updateTextCell(focusedCell.current.id, voiceInputNewContent.current);
-            // engineRef.current.updateTextCell(focusedCell.current.id, 'Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world Hello world ');
-
-            // Postpone setting height
-            setTimeout(() => {
-              if (!engineRef.current) {
-                return;
-              }
-              focusedCell.current = [...engineRef.current.getState().cells].reverse().find(c => c.type === 'text');
-              focusedTextarea.current = textareaRefs.current.get(focusedCell.current?.id ?? '');
-              if (focusedTextarea.current) {
-                focusedTextarea.current.style.height = `${focusedTextarea.current.scrollHeight}px`;
-              }
-            }, 100);
-          } catch (e) {
-            console.log('Non-JSON message from server:', evt.data);
-          }
-        };
-
-        let cb = () => {
-          if (performance.now() - lastUpdateTime.current > 10000) {
-            setUserTalking(false);
-          } else {
-            requestAnimationFrame(cb);
-          }
-        }
-        requestAnimationFrame(cb);
-
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioCtx = new window.AudioContext();
-        source = audioCtx.createMediaStreamSource(stream);
-
-        const inputSampleRate = audioCtx.sampleRate;
-
-        const bufferSize = 4096;
-        processor = audioCtx.createScriptProcessor(bufferSize, 1, 1);
-
-        processor.onaudioprocess = (event) => {
-          const inputBuffer = event.inputBuffer.getChannelData(0);
-          const downsampled = downsampleBuffer(inputBuffer, inputSampleRate, targetSampleRate);
-          const pcm16ab = floatTo16BitPCM(downsampled);
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(pcm16ab);
-          }
-        };
-
-        source.connect(processor);
-        processor.connect(audioCtx.destination);
-      } catch (error) {
-        console.error('Voice input encountered an unexpected error:', error);
-        setUserTalking(false);
-      }
-    }
-  }, [userTalking]);
-
-  const handleToggleTalking = useCallback(async () => {
-    if (!textareaRefs.current) return;
-    if (!isAuthenticated) {
-      const toast = document.createElement('div');
-      toast.textContent = 'Please sign in to enable voice input';
-      toast.style.cssText = `
-        position: fixed;
-        top: 70px;
-        right: 20px;
-        background: #f44336;
-        color: white;
-        padding: 12px 20px;
-        borderRadius: 6px;
-        fontSize: 14px;
-        fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
-        zIndex: 10000;
-        boxShadow: 0 4px 12px rgba(0,0,0,0.15);
-      `;
-      document.body.appendChild(toast);
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s';
-        setTimeout(() => document.body.removeChild(toast), 300);
-      }, 2000);
-      return;
-    }
-
-    setUserTalking(prev => !prev);
-  }, [isAuthenticated]);
 
   const handleLoadEntry = useCallback((entry: CalendarEntry) => {
     if (!engineRef.current) return;
@@ -950,33 +676,27 @@ export default function App() {
 
   // @@@ Handle @ key press for agent dropdown
   const handleKeyDown = useCallback((cellId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    handleTextCellKeyDown(cellId, e);
+
     if (e.key === '@' && !composingCells.has(cellId)) {
-      // @@@ Capture textarea ref before setTimeout (React synthetic events are nullified)
       const textarea = e.currentTarget;
       setTimeout(() => {
         if (textarea) {
-          // @@@ Use exact caret coordinates for dropdown positioning
           const cursorPos = textarea.selectionStart;
           const textBeforeCursor = textarea.value.substring(0, cursorPos);
-
-          // Count lines and get current line text for horizontal position
           const lines = textBeforeCursor.split('\n');
           const linesBefore = lines.length - 1;
           const currentLineText = lines[lines.length - 1];
 
-          // Get computed styles
           const computedStyle = window.getComputedStyle(textarea);
           const lineHeight = parseFloat(computedStyle.lineHeight) || 32;
           const fontSize = parseFloat(computedStyle.fontSize) || 18;
           const rect = textarea.getBoundingClientRect();
           const padding = parseFloat(computedStyle.paddingLeft) || 0;
 
-          // Approximate horizontal position based on character width
-          // Using 0.6 * fontSize as average character width (monospace-like estimation)
           const charWidth = fontSize * 0.6;
           const horizontalOffset = padding + (currentLineText.length * charWidth);
 
-          // Position dropdown at caret
           setDropdownPosition({
             x: rect.left + horizontalOffset,
             y: rect.top + (linesBefore * lineHeight) + lineHeight + 5
@@ -985,11 +705,8 @@ export default function App() {
           setDropdownVisible(true);
         }
       }, 0);
-    } else if (e.key === 'Escape' && dropdownVisible) {
-      setDropdownVisible(false);
-      setDropdownTriggerCellId(null);
     }
-  }, [composingCells, dropdownVisible]);
+  }, [composingCells, handleTextCellKeyDown]);
 
   // @@@ Handle agent selection from dropdown
   const handleAgentSelect = useCallback((voiceName: string, voiceConfig: VoiceConfig) => {
@@ -1516,21 +1233,8 @@ export default function App() {
 
                           {/* Textarea for this cell */}
                           <textarea
-                            ref={(el) => {
-                              if (el) {
-                                const wasEmpty = textareaRefs.current.size === 0;
-                                textareaRefs.current.set(cell.id, el);
-                                // Trigger re-render when first ref is set (once per mount)
-                                if (wasEmpty && !refsReadyTriggered.current) {
-                                  refsReadyTriggered.current = true;
-                                  setRefsReady(prev => prev + 1);
-                                }
-                              } else {
-                                textareaRefs.current.delete(cell.id);
-                              }
-                            }}
+                            ref={createTextareaRef(cell.id)}
                             value={content}
-                            onFocus={() => focusedCell.current = cell}
                             onChange={(e) => handleTextChange(cell.id, e.target.value)}
                             onCompositionStart={() => handleCompositionStart(cell.id)}
                             onCompositionEnd={(e) => handleCompositionEnd(cell.id, e)}

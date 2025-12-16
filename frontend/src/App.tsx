@@ -885,7 +885,7 @@ export default function App() {
   }
 
   // @@@ Show auth screen if not authenticated
-  const loginBannerUrl = `${import.meta.env.BASE_URL}login-banner.png`;
+  const loginBannerUrl = `${import.meta.env.BASE_URL}login-banner.jpg`;
 
   if (!isAuthenticated) {
     return (

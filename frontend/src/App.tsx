@@ -94,7 +94,6 @@ export default function App() {
 
   // @@@ Auth screen state
   const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
-  const [guestMode, setGuestMode] = useState(false);
   const [showMigrationDialog, setShowMigrationDialog] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
   const currentLanguage = (i18n.language || 'en').split('-')[0];
@@ -670,10 +669,6 @@ export default function App() {
     // This is handled by the useEffect hook above
   }, []);
 
-  const handleContinueAsGuest = useCallback(() => {
-    setGuestMode(true);
-  }, []);
-
   // @@@ Handle @ key press for agent dropdown
   const handleKeyDown = useCallback((cellId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     handleTextCellKeyDown(cellId, e);
@@ -889,8 +884,8 @@ export default function App() {
     );
   }
 
-  // @@@ Show auth screen if not authenticated and not in guest mode
-  if (!isAuthenticated && !guestMode) {
+  // @@@ Show auth screen if not authenticated
+  if (!isAuthenticated) {
     return (
       <div style={{
         display: 'flex',
@@ -904,7 +899,6 @@ export default function App() {
           <LoginForm
             onSuccess={handleAuthSuccess}
             onSwitchToRegister={() => setAuthScreen('register')}
-            onContinueAsGuest={handleContinueAsGuest}
           />
         ) : (
           <RegisterForm

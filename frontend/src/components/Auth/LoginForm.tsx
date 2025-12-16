@@ -8,10 +8,9 @@ import { useAuth } from '../../contexts/AuthContext';
 interface LoginFormProps {
   onSuccess: () => void;
   onSwitchToRegister: () => void;
-  onContinueAsGuest: () => void;
 }
 
-export default function LoginForm({ onSuccess, onSwitchToRegister, onContinueAsGuest }: LoginFormProps) {
+export default function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -179,53 +178,6 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onContinueAsG
         >
           Register
         </button>
-      </div>
-
-      <div style={{
-        marginTop: '24px',
-        paddingTop: '20px',
-        borderTop: '1px solid #e0d8cc',
-        textAlign: 'center'
-      }}>
-        <button
-          onClick={onContinueAsGuest}
-          disabled={isSubmitting}
-          style={{
-            width: '100%',
-            padding: '12px',
-            border: '1px solid #d0c4b0',
-            borderRadius: '6px',
-            backgroundColor: '#fff',
-            color: '#666',
-            fontSize: '15px',
-            fontWeight: 500,
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-            fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif",
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            if (!isSubmitting) {
-              e.currentTarget.style.backgroundColor = '#f8f0e6';
-              e.currentTarget.style.borderColor = '#999';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isSubmitting) {
-              e.currentTarget.style.backgroundColor = '#fff';
-              e.currentTarget.style.borderColor = '#d0c4b0';
-            }
-          }}
-        >
-          Continue as Guest
-        </button>
-        <div style={{
-          marginTop: '12px',
-          fontSize: '12px',
-          color: '#999',
-          fontStyle: 'italic'
-        }}>
-          Limited features: no image generation or reflections
-        </div>
       </div>
     </div>
   );

@@ -268,16 +268,14 @@ def seed_system_decks():
     introspection_voices = [
         ('holder', config.VOICE_ARCHETYPES['holder']['name'], '接纳者', 'The Holder',
          config.VOICE_ARCHETYPES['holder']['systemPrompt'], 'heart', 'pink', 0),
-        ('unpacker', config.VOICE_ARCHETYPES['unpacker']['name'], '拆解者', 'The Unpacker',
-         config.VOICE_ARCHETYPES['unpacker']['systemPrompt'], 'brain', 'blue', 1),
         ('starter', config.VOICE_ARCHETYPES['starter']['name'], '启动者', 'The Starter',
-         config.VOICE_ARCHETYPES['starter']['systemPrompt'], 'fist', 'yellow', 2),
+         config.VOICE_ARCHETYPES['starter']['systemPrompt'], 'fist', 'yellow', 1),
         ('mirror', config.VOICE_ARCHETYPES['mirror']['name'], '照镜者', 'The Mirror',
-         config.VOICE_ARCHETYPES['mirror']['systemPrompt'], 'eye', 'green', 3),
+         config.VOICE_ARCHETYPES['mirror']['systemPrompt'], 'eye', 'green', 2),
         ('weaver', config.VOICE_ARCHETYPES['weaver']['name'], '连接者', 'The Weaver',
-         config.VOICE_ARCHETYPES['weaver']['systemPrompt'], 'compass', 'purple', 4),
+         config.VOICE_ARCHETYPES['weaver']['systemPrompt'], 'compass', 'purple', 3),
         ('absurdist', config.VOICE_ARCHETYPES['absurdist']['name'], '幽默者', 'The Absurdist',
-         config.VOICE_ARCHETYPES['absurdist']['systemPrompt'], 'masks', 'pink', 5),
+         config.VOICE_ARCHETYPES['absurdist']['systemPrompt'], 'masks', 'pink', 4),
     ]
 
     for voice_id, name, name_zh, name_en, prompt, icon, color, order in introspection_voices:
@@ -344,7 +342,7 @@ def seed_system_decks():
 
     db.commit()
     db.close()
-    print("✅ System decks seeded (3 decks, 16 voices)")
+    print("✅ System decks seeded (3 decks, 15 voices)")
 
 # ========== Deck CRUD ==========
 

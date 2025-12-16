@@ -72,19 +72,13 @@ def _load_prompt(filename):
         return ""
 
 
-# Voice archetypes (Echo system - 6 Chinese voice personas)
+# Voice archetypes (Echo system - 5 Chinese voice personas)
 VOICE_ARCHETYPES = {
     "holder": {
         "name": "接纳者 (The Holder)",
         "systemPrompt": _load_prompt("holder.md"),
         "icon": "heart",
         "color": "pink",
-    },
-    "unpacker": {
-        "name": "拆解者 (The Unpacker)",
-        "systemPrompt": _load_prompt("unpacker.md"),
-        "icon": "brain",
-        "color": "blue",
     },
     "starter": {
         "name": "启动者 (The Starter)",

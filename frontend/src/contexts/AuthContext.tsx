@@ -33,6 +33,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchUserProfile = async (authToken: string) => {
+    const res = await fetch(`${API_BASE}/api/me`, {
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to fetch user profile');
+    }
+
+    return res.json();
+  };
+
   // Load token from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -78,9 +92,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await response.json();
-    setUser(data.user);
-    setToken(data.token);
     localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
+    setToken(data.token);
+
+    try {
+      const profile = await fetchUserProfile(data.token);
+      setUser(profile);
+    } catch (error) {
+      // Profile fetch failed, clear token to avoid inconsistent state
+      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+      setToken(null);
+      throw error;
+    }
   };
 
   const register = async (email: string, password: string, displayName?: string) => {
@@ -102,9 +125,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await response.json();
-    setUser(data.user);
-    setToken(data.token);
     localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
+    setToken(data.token);
+
+    try {
+      const profile = await fetchUserProfile(data.token);
+      setUser(profile);
+    } catch (error) {
+      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+      setToken(null);
+      throw error;
+    }
   };
 
   const logout = () => {

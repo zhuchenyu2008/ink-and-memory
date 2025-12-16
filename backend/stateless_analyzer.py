@@ -8,7 +8,7 @@ import config
 
 class VoiceTrigger(BaseModel):
     phrase: str = Field(description="Exact trigger phrase from text (verbatim, 2-4 words, avoid punctuation)")
-    voice_id: str = Field(description="Voice ID from the available list (e.g., 'holder', 'mirror', 'unpacker')")
+    voice_id: str = Field(description="Voice ID from the available list (e.g., 'holder', 'mirror', 'starter')")
     voice_name: str = Field(description="Voice display name (will be auto-filled, LLM should not generate this)")
     comment: str = Field(description="What this voice is saying (as if speaking)")
     icon: str = Field(description="Icon identifier")

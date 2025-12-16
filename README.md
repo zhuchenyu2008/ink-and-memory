@@ -35,11 +35,18 @@ You can add friends and view their timelines alongside your own. This feature is
 
 ---
 
-## The Voices
+## Default Voice Decks
 
-Ink & Memory features 16 distinct voices, organized into three decks. Each voice has its own unique personality and perspective.
+Ink & Memory ships with three carefully crafted decks containing 16 voices to get you started. These are designed to offer different perspectives on your writing—but they're just the beginning.
 
-### The Introspection Deck
+**You're not limited to these voices.** The deck system lets you:
+- 🔀 **Fork** any deck to create your own customized version
+- ✏️ **Edit** voice personalities, prompts, icons, and colors
+- ➕ **Create** entirely new voices from scratch
+- 🌐 **Explore** the community store for decks made by other users
+- 📤 **Publish** your own decks to share with the community
+
+### The Introspection Deck (Default)
 This deck is focused on self-reflection and personal growth.
 
 | Icon | Name | Description |
@@ -75,13 +82,55 @@ This deck examines your writing through the lens of different philosophical scho
 
 ---
 
-## Technical Deep Dive
+### Creating Your Own Voices
 
-Ink & Memory is built on a modern, robust technology stack:
+Each voice is defined by:
+- **A system prompt** that shapes its personality and perspective
+- **An icon** for visual identification
+- **A color** that tints its highlights in your text
 
-*   **Frontend:** A beautiful and responsive interface built with **React** and **TypeScript**. We use **Vite** for a fast and efficient development experience, and the **TipTap** editor for a smooth and customizable writing surface. A custom **EditorEngine** manages the editor state and communicates with the backend.
-*   **Backend:** A powerful and scalable API built with **FastAPI** and **Python**. We use the **PolyCLI** library to orchestrate calls to Large Language Models (LLMs), constructing detailed prompts to generate high-quality, context-aware comments from the different AI personas. A **Stateless Analyzer** is at the core of the "voices" feature.
-*   **Database:** A reliable and efficient **SQLite** database stores all your data, including users, sessions, preferences, decks, voices, and friends.
+When you fork a deck, you get full control over all these elements. Want a voice that channels your favorite philosopher? A critic that focuses on narrative structure? A cheerleader for your creative projects? Build it yourself or find it in the community store.
+
+---
+
+## How the Voices Work
+
+As you write, Ink & Memory analyzes your text using a **trace-based energy system**. Here's what happens behind the scenes:
+
+1. **Energy Accumulates** — As you type, the system builds up "energy" based on your writing.
+2. **Threshold Triggers** — When enough energy accumulates, the AI analyzes your recent text.
+3. **Voices Respond** — Enabled voices scan for phrases that resonate with their personality.
+4. **Comments Appear** — Relevant voices highlight phrases and offer their perspective in the margin.
+
+This creates an organic, non-intrusive experience where comments appear naturally as you write, rather than constantly interrupting you.
+
+---
+
+## Technical Architecture
+
+Ink & Memory is built on a modern stack designed for real-time AI interaction:
+
+### Frontend
+- **React 19 + TypeScript** — Type-safe, component-based UI.
+- **Vite** — Fast dev server and builds.
+- **TipTap** — Extensible rich text editing with custom extensions for voice highlights.
+- **Custom EditorEngine** — Manages editor state, comments, and chat widgets.
+
+### Backend
+- **FastAPI + Python** — High-performance async API server.
+- **PolyCLI** — Orchestrates LLM calls with structured prompts and retry logic.
+- **Stateless Analyzer** — Core voice analysis engine that keeps context without server-side state.
+- **SQLite + WAL** — Reliable storage with concurrent read support.
+
+### AI Integration
+- **Multi-model support** — Works with GPT-4, Claude, DeepSeek, and Gemini.
+- **Structured outputs** — Pydantic models ensure type-safe LLM responses.
+- **Daily image generation** — Automatic visual summaries of your writing.
+
+### Key Design Decisions
+- **Deck-based architecture** — Voices are organized into forkable, shareable decks.
+- **Parent-child relationships** — Forked decks can sync updates from their source.
+- **Community store** — Published decks are discoverable and installable by other users.
 
 ---
 

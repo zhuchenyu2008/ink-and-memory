@@ -6,6 +6,8 @@ import os
 # Model to use for voice analysis
 MODEL = "claude-haiku-4.5"
 MODEL = "deepseek-v3.2"
+MODEL = "gemini-3-pro-preview"
+MODEL = "claude-sonnet-4.5"
 
 # @@@ Sparsity control
 MAX_VOICES = 5
@@ -13,6 +15,7 @@ MIN_TEXT_LENGTH = 20
 SINGLE_COMMENT_MODE = (
     True  # If True, only add 1 comment per request (gradual accumulation)
 )
+
 
 # @@@ Image generation configuration
 def _load_image_api_key() -> str:

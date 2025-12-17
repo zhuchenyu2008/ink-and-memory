@@ -7,6 +7,7 @@ import os
 MODEL = "claude-haiku-4.5"
 MODEL = "deepseek-v3.2"
 MODEL = "gemini-3-pro-preview"
+MODEL = "mistral-small-creative"
 MODEL = "claude-sonnet-4.5"
 
 # @@@ Sparsity control

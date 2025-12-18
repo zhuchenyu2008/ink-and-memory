@@ -167,11 +167,11 @@ Speak in {voice_info["name"]}'s characteristic style, but keep it brief and insp
 Give them ONE very short, gentle nudge about what to write next (max 15 words)."""
 
     # Generate inspiration
-    print(f"📤 Calling agent.run() with model='claude-haiku-4.5'...")
+    print(f"📤 Calling agent.run() with model='{config.VOICE_INSPIRATION_MODEL}'...")
     result = agent.run(
         user_prompt,
         system_prompt=system_prompt,
-        model="claude-haiku-4.5",
+        model=config.VOICE_INSPIRATION_MODEL,
         cli="no-tools",
         tracked=True,
     )
@@ -291,7 +291,7 @@ User's current state:
     prompt += f"\n\nUser: {user_message}\n\n{voice_name}:"
 
     # Get response from LLM
-    result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
+    result = agent.run(prompt, model=config.VOICE_CHAT_MODEL, cli="no-tools", tracked=True)
 
     if not result.is_success or not result.content:
         response = "..."
@@ -408,7 +408,7 @@ Format as a JSON array:
 Return ONLY the JSON array, no other text."""
     prompt += f"\n\n{language_instruction(language_code, 'All titles, descriptions, and examples should use this language. Keep the JSON keys the same.')}"
 
-    result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
+    result = agent.run(prompt, model=config.ECHO_ANALYSIS_MODEL, cli="no-tools", tracked=True)
 
     if not result.is_success or not result.content:
         return {"echoes": []}
@@ -465,7 +465,7 @@ Format as a JSON array:
 Return ONLY the JSON array, no other text."""
     prompt += f"\n\n{language_instruction(language_code, 'Use this language for trait names, explanations, and evidence (JSON keys stay in English).')}"
 
-    result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
+    result = agent.run(prompt, model=config.TRAIT_ANALYSIS_MODEL, cli="no-tools", tracked=True)
 
     if not result.is_success or not result.content:
         return {"traits": []}
@@ -524,7 +524,7 @@ Format as a JSON array:
 Return ONLY the JSON array, no other text."""
     prompt += f"\n\n{language_instruction(language_code, 'Use this language for pattern names, descriptions, and frequency notes (JSON keys stay in English).')}"
 
-    result = agent.run(prompt, model="gpt-4o-dou", cli="no-tools", tracked=True)
+    result = agent.run(prompt, model=config.PATTERN_ANALYSIS_MODEL, cli="no-tools", tracked=True)
 
     if not result.is_success or not result.content:
         return {"patterns": []}

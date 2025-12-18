@@ -3,13 +3,18 @@
 import json
 import os
 
-# Model to use for voice analysis
-MODEL = "claude-haiku-4.5"
-MODEL = "deepseek-v3.2"
-MODEL = "gemini-3-pro-preview"
-MODEL = "mistral-small-creative"
-MODEL = "claude-sonnet-4.5"
-MODEL = "gemini-3-flash-preview"
+# VOICE_ANALYSIS_MODEL = "claude-haiku-4.5"
+# VOICE_ANALYSIS_MODEL = "deepseek-v3.2"
+# VOICE_ANALYSIS_MODEL = "gemini-3-pro-preview"
+# VOICE_ANALYSIS_MODEL = "mistral-small-creative"
+# VOICE_ANALYSIS_MODEL = "claude-sonnet-4.5"
+VOICE_ANALYSIS_MODEL = "gemini-3-flash-preview"
+
+VOICE_INSPIRATION_MODEL = "gemini-3-flash-preview"
+VOICE_CHAT_MODEL = "gemini-3-flash-preview"
+ECHO_ANALYSIS_MODEL = "gemini-3-flash-preview"
+TRAIT_ANALYSIS_MODEL = "gemini-3-flash-preview"
+PATTERN_ANALYSIS_MODEL = "gemini-3-flash-preview"
 
 # @@@ Sparsity control
 MAX_VOICES = 5

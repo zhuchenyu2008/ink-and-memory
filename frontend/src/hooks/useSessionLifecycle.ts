@@ -33,6 +33,7 @@ export function useSessionLifecycle({
   const [state, setState] = useState<EditorState | null>(null);
   const [localTexts, setLocalTexts] = useState<Map<string, string>>(new Map());
   const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [selectedStateLoading, setSelectedStateLoading] = useState(true);
   const [userTimezone, setUserTimezone] = useState(browserTimezone);
 
   const ensuredSessionForDayRef = useRef<string | null>(null);
@@ -302,127 +303,156 @@ export function useSessionLifecycle({
 
   useEffect(() => {
     const loadInitialState = async () => {
-      if (isAuthenticated) {
-        try {
-          const { listSessions, getSession, getPreferences } = await import('../api/voiceApi');
+      setSelectedStateLoading(true);
+      try {
+        if (isAuthenticated) {
+          try {
+            const { listSessions, getSession, getPreferences } = await import('../api/voiceApi');
 
-          const sessions = await listSessions(userTimezoneRef.current);
+            const sessions = await listSessions(userTimezoneRef.current);
 
-          let sessionToLoad = null;
-          let loadedSessionId: string | undefined = undefined;
-          const currentSessionId = 'current-session';
-          const currentSession = sessions.find(s => s.id === currentSessionId);
+            let sessionToLoad = null;
+            let loadedSessionId: string | undefined = undefined;
+            let startedFreshForToday = false;
+            const currentSessionId = 'current-session';
+            const currentSession = sessions.find(s => s.id === currentSessionId);
 
-          if (currentSession) {
-            const fullSession = await getSession(currentSessionId);
-            sessionToLoad = fullSession.editor_state;
-            loadedSessionId = currentSessionId;
-          } else if (sessions.length > 0) {
-            const mostRecent = sessions.sort((a, b) =>
-              new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-            )[0];
-
-            const timezoneForDay = userTimezoneRef.current || 'UTC';
-            const today = getTodayKeyInTimezone(timezoneForDay);
-            const sessionDate = getLocalDayKey(mostRecent.updated_at, timezoneForDay);
-
-            if (sessionDate === today) {
-              const fullSession = await getSession(mostRecent.id);
+            if (currentSession) {
+              const fullSession = await getSession(currentSessionId);
               sessionToLoad = fullSession.editor_state;
-              loadedSessionId = mostRecent.id;
-            } else {
-              console.log(`📅 New day detected. Last session was from ${sessionDate}, today is ${today}. Starting fresh.`);
-              sessionToLoad = null;
-              loadedSessionId = undefined;
+              loadedSessionId = currentSessionId;
+            } else if (sessions.length > 0) {
+              const mostRecent = sessions.sort((a, b) =>
+                new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+              )[0];
+
+              const timezoneForDay = userTimezoneRef.current || 'UTC';
+              const today = getTodayKeyInTimezone(timezoneForDay);
+              const sessionDate = getLocalDayKey(mostRecent.updated_at, timezoneForDay);
+
+              if (sessionDate === today) {
+                const fullSession = await getSession(mostRecent.id);
+                sessionToLoad = fullSession.editor_state;
+                loadedSessionId = mostRecent.id;
+              } else {
+                console.log(`📅 New day detected. Last session was from ${sessionDate}, today is ${today}. Starting fresh.`);
+                if (engineRef.current) {
+                  // @@@ New Day Reset - force blank state so the chooser saves to today
+                  const blankState: EditorState = {
+                    cells: [{ id: Math.random().toString(36).slice(2), type: 'text', content: '' }],
+                    commentors: [],
+                    tasks: [],
+                    weightPath: [],
+                    overlappedPhrases: [],
+                    id: createSessionId(),
+                    selectedState: undefined,
+                    createdAt: new Date().toISOString()
+                  };
+
+                  engineRef.current.loadState(blankState);
+                  setState(blankState);
+                  setLocalTexts(new Map());
+                  ensuredSessionForDayRef.current = today;
+                  startedFreshForToday = true;
+
+                  await persistSessionImmediately(blankState);
+                } else {
+                  console.error('Engine not ready when starting fresh for new day');
+                }
+              }
             }
+
+            if (sessionToLoad && loadedSessionId) {
+              const normalizedState: EditorState = {
+                ...sessionToLoad,
+                id: sessionToLoad.id || (sessionToLoad as any)?.currentEntryId || (sessionToLoad as any)?.sessionId || loadedSessionId
+              };
+              engineRef.current?.loadState(normalizedState);
+              setState(engineRef.current?.getState() || normalizedState);
+
+              const texts = new Map<string, string>();
+              sessionToLoad.cells?.filter((c: any) => c.type === 'text').forEach((c: any) => {
+                texts.set(c.id, c.content || '');
+              });
+              setLocalTexts(texts);
+            } else if (!startedFreshForToday) {
+              setState(engineRef.current?.getState() || null);
+            }
+
+            try {
+              const prefs = await getPreferences();
+              if (prefs.voice_configs) {
+                setVoiceConfigs(prefs.voice_configs);
+              }
+              if (prefs.meta_prompt) {
+                saveMetaPrompt(prefs.meta_prompt);
+              }
+              if (prefs.state_config) {
+                setStateConfig(prefs.state_config);
+              }
+              if (prefs.timezone) {
+                setUserTimezone(prefs.timezone);
+              }
+
+              if (prefs.selected_state !== undefined && prefs.selected_state !== null) {
+                const timezoneForDay = userTimezoneRef.current || 'UTC';
+                const today = getTodayKeyInTimezone(timezoneForDay);
+                const updatedAtDate = prefs.updated_at
+                  ? getLocalDayKey(prefs.updated_at, timezoneForDay)
+                  : null;
+
+                if (updatedAtDate === today) {
+                  setSelectedState(prefs.selected_state);
+                } else {
+                  setSelectedState(null);
+                }
+              }
+            } catch (err) {
+              console.log('No preferences found, using defaults');
+            }
+          } catch (error) {
+            console.error('Failed to load from database:', error);
+            setState(engineRef.current?.getState() || null);
           }
+        } else {
+          const saved = localStorage.getItem(STORAGE_KEYS.EDITOR_STATE);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              engineRef.current?.loadState(parsed);
+              setState(engineRef.current?.getState() || parsed);
 
-          if (sessionToLoad && loadedSessionId) {
-            const normalizedState: EditorState = {
-              ...sessionToLoad,
-              id: sessionToLoad.id || (sessionToLoad as any)?.currentEntryId || (sessionToLoad as any)?.sessionId || loadedSessionId
-            };
-            engineRef.current?.loadState(normalizedState);
-            setState(engineRef.current?.getState() || normalizedState);
-
-            const texts = new Map<string, string>();
-            sessionToLoad.cells?.filter((c: any) => c.type === 'text').forEach((c: any) => {
-              texts.set(c.id, c.content || '');
-            });
-            setLocalTexts(texts);
+              const texts = new Map<string, string>();
+              parsed.cells?.filter((c: any) => c.type === 'text').forEach((c: any) => {
+                texts.set(c.id, c.content || '');
+              });
+              setLocalTexts(texts);
+            } catch (e) {
+              console.error('Failed to load saved state:', e);
+            }
           } else {
             setState(engineRef.current?.getState() || null);
           }
 
-          try {
-            const prefs = await getPreferences();
-            if (prefs.voice_configs) {
-              setVoiceConfigs(prefs.voice_configs);
-            }
-            if (prefs.meta_prompt) {
-              saveMetaPrompt(prefs.meta_prompt);
-            }
-            if (prefs.state_config) {
-              setStateConfig(prefs.state_config);
-            }
-            if (prefs.timezone) {
-              setUserTimezone(prefs.timezone);
-            }
+          const savedState = localStorage.getItem(STORAGE_KEYS.SELECTED_STATE);
+          const savedDate = localStorage.getItem('selected-state-date');
+          const today = getTodayKeyInTimezone(userTimezoneRef.current || browserTimezone);
 
-            if (prefs.selected_state !== undefined && prefs.selected_state !== null) {
-              const timezoneForDay = userTimezoneRef.current || 'UTC';
-              const today = getTodayKeyInTimezone(timezoneForDay);
-              const updatedAtDate = prefs.updated_at
-                ? getLocalDayKey(prefs.updated_at, timezoneForDay)
-                : null;
-
-              if (updatedAtDate === today) {
-                setSelectedState(prefs.selected_state);
-              } else {
-                setSelectedState(null);
-              }
-            }
-          } catch (err) {
-            console.log('No preferences found, using defaults');
+          if (savedState && savedDate === today) {
+            setSelectedState(savedState);
+          } else {
+            localStorage.removeItem(STORAGE_KEYS.SELECTED_STATE);
+            localStorage.removeItem('selected-state-date');
+            setSelectedState(null);
           }
-        } catch (error) {
-          console.error('Failed to load from database:', error);
-          setState(engineRef.current?.getState() || null);
         }
-      } else {
-        const saved = localStorage.getItem(STORAGE_KEYS.EDITOR_STATE);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            engineRef.current?.loadState(parsed);
-            setState(engineRef.current?.getState() || parsed);
-
-            const texts = new Map<string, string>();
-            parsed.cells?.filter((c: any) => c.type === 'text').forEach((c: any) => {
-              texts.set(c.id, c.content || '');
-            });
-            setLocalTexts(texts);
-          } catch (e) {
-            console.error('Failed to load saved state:', e);
-          }
-        } else {
-          setState(engineRef.current?.getState() || null);
+        if (!isAuthenticated) {
+          setUserTimezone(browserTimezone);
         }
-
-        const savedState = localStorage.getItem(STORAGE_KEYS.SELECTED_STATE);
-        const savedDate = localStorage.getItem('selected-state-date');
-        const today = getTodayKeyInTimezone(userTimezoneRef.current || browserTimezone);
-
-        if (savedState && savedDate === today) {
-          setSelectedState(savedState);
-        } else {
-          localStorage.removeItem(STORAGE_KEYS.SELECTED_STATE);
-          localStorage.removeItem('selected-state-date');
-          setSelectedState(null);
-        }
-      }
-      if (!isAuthenticated) {
-        setUserTimezone(browserTimezone);
+      } catch (error) {
+        console.error('Failed to initialize session lifecycle:', error);
+      } finally {
+        setSelectedStateLoading(false);
       }
     };
 
@@ -493,6 +523,7 @@ export function useSessionLifecycle({
     setLocalTexts,
     selectedState,
     setSelectedState,
+    selectedStateLoading,
     userTimezone,
     setUserTimezone,
     ensureStateForPersistence,

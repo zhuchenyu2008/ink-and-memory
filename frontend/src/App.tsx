@@ -122,6 +122,7 @@ export default function App() {
     setState,
     selectedState,
     setSelectedState,
+    selectedStateLoading,
     userTimezone,
     ensureStateForPersistence,
     getFirstLineFromState,
@@ -1197,6 +1198,7 @@ export default function App() {
                     <StateChooser
                       stateConfig={stateConfig}
                       selectedState={state?.selectedState ?? selectedState}
+                      selectedStateLoading={selectedStateLoading}
                       createdAt={state?.createdAt}
                       onChoose={handleStateChoose}
                     />

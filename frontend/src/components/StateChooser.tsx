@@ -8,26 +8,36 @@ import { parseFlexibleTimestamp } from '../utils/timezone';
 interface Props {
   stateConfig: StateConfig;
   selectedState: string | null;
+  selectedStateLoading?: boolean;
   createdAt?: string;  // ISO timestamp recorded when the session was created
   onChoose: (stateId: string) => void;
 }
 
-export default function StateChooser({ stateConfig, selectedState, createdAt, onChoose }: Props) {
+export default function StateChooser({
+  stateConfig,
+  selectedState,
+  selectedStateLoading = false,
+  createdAt,
+  onChoose
+}: Props) {
   const { i18n } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(!selectedState);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const indicatorRef = useRef<HTMLDivElement>(null);
 
-  // @@@ Collapse when selectedState is set externally
+  // @@@ Collapse when selectedState is set externally (skip while loading)
   useEffect(() => {
+    if (selectedStateLoading) return;
     if (selectedState) {
       setIsExpanded(false);
       // Trigger highlight animation
       setShouldAnimate(true);
       setTimeout(() => setShouldAnimate(false), 600);
+    } else {
+      setIsExpanded(true);
     }
-  }, [selectedState]);
+  }, [selectedState, selectedStateLoading]);
 
   const selectedStateData = selectedState ? stateConfig.states[selectedState] : null;
 
@@ -95,6 +105,10 @@ export default function StateChooser({ stateConfig, selectedState, createdAt, on
         );
     }
   };
+
+  if (selectedStateLoading) {
+    return <div style={{ height: '32px' }} />;
+  }
 
   return (
     <>

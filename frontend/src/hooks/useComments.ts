@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { MutableRefObject, Dispatch, SetStateAction, SyntheticEvent } from 'react';
 import type { EditorState, Commentor, TextCell, EditorEngine } from '../engine/EditorEngine';
 import { findNormalizedPhrase } from '../utils/textNormalize';
@@ -52,6 +52,7 @@ export function useComments({
   engineRef,
 }: UseCommentsOptions): UseCommentsReturn {
   const [groupPages, setGroupPages] = useState<Map<string, number>>(new Map());
+  const prevCommentCounts = useRef<Map<string, number>>(new Map());
   const [cursorPosition, setCursorPosition] = useState<number>(0);
   const [cursorCellId, setCursorCellId] = useState<string | null>(null);
   const [mobileActiveComment, setMobileActiveComment] = useState<Commentor | null>(null);
@@ -156,8 +157,12 @@ export function useComments({
     return groups;
   }, [state?.commentors, state, refsReady, selectedState]);
 
+  // @@@ Preserve manual selection - only jump to newest when a group gains comments
   useEffect(() => {
-    if (!commentGroups) return;
+    const currentCounts = new Map<string, number>();
+    commentGroups.forEach((group, groupKey) => {
+      currentCounts.set(groupKey, group.comments.length);
+    });
 
     setGroupPages(prev => {
       const next = new Map(prev);
@@ -168,10 +173,15 @@ export function useComments({
           return;
         }
 
-        const currentPage = prev.get(groupKey) || 0;
+        const currentPage = prev.get(groupKey) ?? 0;
         const maxPage = group.comments.length - 1;
+        const prevCount = prevCommentCounts.current.get(groupKey) ?? 0;
+        const currentCount = group.comments.length;
+        const isNewGroup = !prev.has(groupKey);
 
-        if (group.comments.length > 1 && currentPage < maxPage) {
+        if (isNewGroup) {
+          next.set(groupKey, maxPage);
+        } else if (currentCount > prevCount) {
           next.set(groupKey, maxPage);
         } else if (currentPage > maxPage) {
           next.set(groupKey, maxPage);
@@ -186,6 +196,8 @@ export function useComments({
 
       return next;
     });
+
+    prevCommentCounts.current = currentCounts;
   }, [commentGroups]);
 
   const handleGroupNavigate = useCallback((groupKey: string, newIndex: number) => {

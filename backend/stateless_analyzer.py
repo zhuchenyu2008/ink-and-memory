@@ -175,7 +175,7 @@ User's current state:
 
     result = agent.run(
         prompt,
-        model=config.MODEL,
+        model=config.VOICE_ANALYSIS_MODEL,
         cli="no-tools",
         schema_cls=SingleVoiceAnalysis,
         tracked=True,

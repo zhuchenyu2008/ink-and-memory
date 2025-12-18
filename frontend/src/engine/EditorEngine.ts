@@ -14,6 +14,7 @@ export interface EditorState {
   tasks: Task[];
   weightPath: WeightEntry[];
   overlappedPhrases: string[];  // @@@ Phrases rejected due to overlap (feedback to backend)
+  notFoundPhrases: string[];  // @@@ Phrases LLM suggested that were not found in text
   id: string;
   selectedState?: string | null;  // @@@ Emotional state for this session (stored per-session)
   createdAt?: string;  // @@@ ISO timestamp when session was created
@@ -132,6 +133,7 @@ export class EditorEngine {
       tasks: [],
       weightPath: [],
       overlappedPhrases: [],
+      notFoundPhrases: [],
       id: sessionId
     };
   }
@@ -243,6 +245,7 @@ export class EditorEngine {
       tasks: [],
       weightPath: [],
       overlappedPhrases: [],
+      notFoundPhrases: [],
       id: preservedId,
       selectedState,
       createdAt: preservedTimestamp
@@ -333,6 +336,9 @@ export class EditorEngine {
           textSnippet: textSnippet,
           textCharCodes: textChars
         });
+        if (!this.state.notFoundPhrases.includes(commentor.phrase)) {
+          this.state.notFoundPhrases.push(commentor.phrase);
+        }
         skippedAny = true;
         continue;
       }
@@ -432,7 +438,15 @@ export class EditorEngine {
         ? stateConfig.states[selectedState].prompt
         : '';
 
-      const result = await analyzeText(text, this.state.id, appliedCommentors, metaPrompt, statePrompt, this.state.overlappedPhrases);
+      const result = await analyzeText(
+        text,
+        this.state.id,
+        appliedCommentors,
+        metaPrompt,
+        statePrompt,
+        this.state.overlappedPhrases,
+        this.state.notFoundPhrases
+      );
 
       // Backend returns at most ONE voice
       if (result.voices.length > 0) {
@@ -711,6 +725,9 @@ export class EditorEngine {
     // @@@ Ensure overlappedPhrases field exists (migration for old state)
     if (!this.state.overlappedPhrases) {
       this.state.overlappedPhrases = [];
+    }
+    if (!this.state.notFoundPhrases) {
+      this.state.notFoundPhrases = [];
     }
     // Recompute used energy from applied commentors
     this.usedEnergy = this.state.commentors.filter(c => c.appliedAt).length * this.threshold;

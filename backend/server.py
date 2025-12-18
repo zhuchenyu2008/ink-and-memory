@@ -314,6 +314,7 @@ User's current state:
         "meta_prompt": {"type": "str"},
         "state_prompt": {"type": "str"},
         "overlapped_phrases": {"type": "list"},
+        "not_found_phrases": {"type": "list"},
     },
     category="Analysis",
 )
@@ -325,6 +326,7 @@ def analyze_text(
     meta_prompt: str = "",
     state_prompt: str = "",
     overlapped_phrases: list = None,
+    not_found_phrases: list = None,
 ):
     """Stateless analysis - returns ONE new comment based on text and applied comments."""
     print(f"\n{'=' * 60}")
@@ -333,6 +335,7 @@ def analyze_text(
     print(f"   Text: {text[:100]}...")
     print(f"   Applied comments: {len(applied_comments or [])}")
     print(f"   Overlapped phrases: {len(overlapped_phrases or [])}")
+    print(f"   Not found phrases: {len(not_found_phrases or [])}")
     print(f"   Meta prompt: {repr(meta_prompt)[:100]}")
     print(f"   State prompt: {repr(state_prompt)[:100]}")
     print(f"{'=' * 60}\n")
@@ -354,6 +357,7 @@ def analyze_text(
         meta_prompt,
         state_prompt,
         overlapped_phrases or [],
+        not_found_phrases or [],
     )
 
     print(f"✅ Returning {result['new_voices_added']} new voice(s)")

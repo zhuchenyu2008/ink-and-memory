@@ -125,7 +125,15 @@ interface SyncResponse {
  * Analyze text and return voices with metadata (PolyCLI direct call)
  * Backend loads voice configs from database using user_id from JWT token
  */
-export async function analyzeText(text: string, sessionId: string, appliedComments?: any[], metaPrompt?: string, statePrompt?: string, overlappedPhrases?: string[]) {
+export async function analyzeText(
+  text: string,
+  sessionId: string,
+  appliedComments?: any[],
+  metaPrompt?: string,
+  statePrompt?: string,
+  overlappedPhrases?: string[],
+  notFoundPhrases?: string[]
+) {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 
   const response = await fetch(`${API_BASE}/polycli/api/trigger-sync`, {
@@ -142,7 +150,8 @@ export async function analyzeText(text: string, sessionId: string, appliedCommen
         applied_comments: appliedComments || [],
         meta_prompt: metaPrompt || '',
         state_prompt: statePrompt || '',
-        overlapped_phrases: overlappedPhrases || []
+        overlapped_phrases: overlappedPhrases || [],
+        not_found_phrases: notFoundPhrases || []
       },
       timeout: 90
     })

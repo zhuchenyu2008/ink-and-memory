@@ -109,6 +109,7 @@ export function useSessionLifecycle({
       tasks: [],
       weightPath: [],
       overlappedPhrases: [],
+      notFoundPhrases: [],
       id: newSessionId,
       selectedState: resolvedSelectedState ?? undefined,
       createdAt: new Date().toISOString()
@@ -344,6 +345,7 @@ export function useSessionLifecycle({
                     tasks: [],
                     weightPath: [],
                     overlappedPhrases: [],
+                    notFoundPhrases: [],
                     id: createSessionId(),
                     selectedState: undefined,
                     createdAt: new Date().toISOString()

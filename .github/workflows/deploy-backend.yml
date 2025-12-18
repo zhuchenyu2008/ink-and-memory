@@ -88,6 +88,13 @@ jobs:
               -p 127.0.0.1:8765:8765 \
               -v /root/ink-and-memory/backend/data:/app/data \
               -v /root/ink-and-memory/backend/models.json:/app/models.json:ro \
+              --add-host host.docker.internal:host-gateway \
+              -e HTTP_PROXY=http://host.docker.internal:7890 \
+              -e HTTPS_PROXY=http://host.docker.internal:7890 \
+              -e NO_PROXY=localhost,127.0.0.1,::1 \
+              -e http_proxy=http://host.docker.internal:7890 \
+              -e https_proxy=http://host.docker.internal:7890 \
+              -e no_proxy=localhost,127.0.0.1,::1 \
               -e BACKEND_VERSION=${IMAGE_TAG} \
               ${IMAGE_TAG}
             tmux kill-session -t ink-and-memory-docker 2>/dev/null || true

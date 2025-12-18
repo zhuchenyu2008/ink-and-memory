@@ -9,6 +9,7 @@ MODEL = "deepseek-v3.2"
 MODEL = "gemini-3-pro-preview"
 MODEL = "mistral-small-creative"
 MODEL = "claude-sonnet-4.5"
+MODEL = "gemini-3-flash-preview"
 
 # @@@ Sparsity control
 MAX_VOICES = 5

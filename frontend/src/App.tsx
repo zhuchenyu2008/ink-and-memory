@@ -509,35 +509,44 @@ export default function App() {
     }
   }, [startDetachedBlankSession]);
 
-  const handleStateChoose = useCallback(async (stateId: string) => {
-    setSelectedState(stateId);
-    const todayKey = getTodayKeyInTimezone(userTimezone);
+    const handleStateChoose = useCallback(async (stateId: string) => {
+      const todayKey = getTodayKeyInTimezone(userTimezone);
 
-    // @@@ NEW: Save to EditorState (per-session storage)
-    if (engineRef.current) {
-      const currentState = engineRef.current.getState();
-      currentState.selectedState = stateId;
-      // Set createdAt only if not already set
-      if (!currentState.createdAt) {
-        currentState.createdAt = new Date().toISOString();
-      }
-      setState(currentState);
-    }
+      if (engineRef.current) {
+        const currentState = engineRef.current.getState();
+        const sessionDate = currentState.createdAt
+          ? getLocalDayKey(currentState.createdAt, userTimezone)
+          : null;
 
-    // @@@ KEEP: Also save to global preferences for daily reset check
-    if (isAuthenticated) {
-      try {
-        const { savePreferences } = await import('./api/voiceApi');
-        await savePreferences({ selected_state: stateId });
-        // Database updated_at will be used for daily reset check
-      } catch (error) {
-        console.error('Failed to save state to database:', error);
+        if (sessionDate && sessionDate !== todayKey) {
+          console.log(`📅 State chosen for old session (${sessionDate}). Starting fresh for ${todayKey}.`);
+          await startDetachedBlankSession(true);
+        }
+
+        const stateToUpdate = engineRef.current.getState();
+        stateToUpdate.selectedState = stateId;
+        if (!stateToUpdate.createdAt) {
+          stateToUpdate.createdAt = new Date().toISOString();
+        }
+        setState(stateToUpdate);
       }
-    } else {
-      localStorage.setItem(STORAGE_KEYS.SELECTED_STATE, stateId);
-      localStorage.setItem('selected-state-date', todayKey);
-    }
-  }, [isAuthenticated, userTimezone]);
+
+      setSelectedState(stateId);
+
+      // @@@ KEEP: Also save to global preferences for daily reset check
+      if (isAuthenticated) {
+        try {
+          const { savePreferences } = await import('./api/voiceApi');
+          await savePreferences({ selected_state: stateId });
+          // Database updated_at will be used for daily reset check
+        } catch (error) {
+          console.error('Failed to save state to database:', error);
+        }
+      } else {
+        localStorage.setItem(STORAGE_KEYS.SELECTED_STATE, stateId);
+        localStorage.setItem('selected-state-date', todayKey);
+      }
+    }, [isAuthenticated, startDetachedBlankSession, userTimezone]);
 
   // @@@ Insert @ character at the end of last text cell
   const handleInsertAgent = useCallback(() => {

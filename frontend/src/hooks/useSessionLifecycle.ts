@@ -116,7 +116,7 @@ export function useSessionLifecycle({
     };
   }, [selectedState]);
 
-  const startDetachedBlankSession = useCallback((persistImmediately: boolean = false) => {
+  const startDetachedBlankSession = useCallback(async (persistImmediately: boolean = false) => {
     if (!engineRef.current) return;
     const blankState = buildBlankState();
 
@@ -127,7 +127,7 @@ export function useSessionLifecycle({
     if (!isAuthenticated) {
       localStorage.setItem(STORAGE_KEYS.EDITOR_STATE, JSON.stringify(blankState));
     } else if (persistImmediately) {
-      persistSessionImmediately(blankState);
+      await persistSessionImmediately(blankState);
     }
   }, [buildBlankState, isAuthenticated, persistSessionImmediately]);
 

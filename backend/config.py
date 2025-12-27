@@ -8,22 +8,22 @@ import os
 # VOICE_ANALYSIS_MODEL = "gemini-3-pro-preview"
 # VOICE_ANALYSIS_MODEL = "mistral-small-creative"
 # VOICE_ANALYSIS_MODEL = "claude-sonnet-4.5"
-VOICE_ANALYSIS_MODEL = "gemini-3-flash-preview"
+VOICE_ANALYSIS_MODEL = "default"
 
 # VOICE_INSPIRATION_MODEL = "claude-sonnet-4.5"
-VOICE_INSPIRATION_MODEL = "gemini-3-flash-preview"
+VOICE_INSPIRATION_MODEL = "default"
 
 # VOICE_CHAT_MODEL = "claude-sonnet-4.5"
-VOICE_CHAT_MODEL = "gemini-3-flash-preview"
+VOICE_CHAT_MODEL = "default"
 
 # ECHO_ANALYSIS_MODEL = "claude-sonnet-4.5"
-ECHO_ANALYSIS_MODEL = "gemini-3-flash-preview"
+ECHO_ANALYSIS_MODEL = "default"
 
 # TRAIT_ANALYSIS_MODEL = "claude-sonnet-4.5"
-TRAIT_ANALYSIS_MODEL = "gemini-3-flash-preview"
+TRAIT_ANALYSIS_MODEL = "default"
 
 # PATTERN_ANALYSIS_MODEL = "claude-sonnet-4.5"
-PATTERN_ANALYSIS_MODEL = "gemini-3-flash-preview"
+PATTERN_ANALYSIS_MODEL = "default"
 
 # @@@ Sparsity control
 MAX_VOICES = 5

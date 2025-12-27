@@ -86,4 +86,4 @@ python tests/test_api_endpoints.py
 
 **"API tests return 502"**
 - Server may have crashed - check `/tmp/test_server.log`
-- Verify PolyCLI is installed: `pip show polycli`
+- Verify PolyCLI is installed: `pip show polyagent`

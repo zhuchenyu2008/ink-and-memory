@@ -90,6 +90,8 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 uv pip install -r requirements.txt
 ```
 
+PolyCLI is provided by the PyPI package `polyagent` (installed via the requirements above).
+
 Create a `models.json` file for your LLM:
 
 ```json

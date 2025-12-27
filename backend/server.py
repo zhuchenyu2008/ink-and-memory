@@ -904,6 +904,7 @@ timeline_gen_scheduler = AsyncIOScheduler()
 @app.on_event("startup")
 async def startup_scheduler():
     """Start the timeline auto-generation scheduler on app startup."""
+    database.init_db()
     print("\n" + "=" * 60)
     print("📅 Starting Timeline Auto-Generation Scheduler")
     print("   Schedule: Daily at 00:00 (midnight, Asia/Shanghai timezone)")

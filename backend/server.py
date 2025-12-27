@@ -13,9 +13,9 @@ from datetime import datetime
 import httpx
 from fastapi import FastAPI, HTTPException, Depends, Header, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from polyagent.orchestration.session_registry import session_def, get_registry
-from polyagent.integrations.fastapi import mount_control_panel
-from polyagent import PolyAgent
+from polycli.orchestration.session_registry import session_def, get_registry
+from polycli.integrations.fastapi import mount_control_panel
+from polycli.polyagent import PolyAgent
 from stateless_analyzer import analyze_stateless
 from speech_recognition import init_speech_recognition
 import config

@@ -105,7 +105,7 @@ Create a `models.json` file for your LLM:
   }
 }
 ```
-> Note: You need to change "default" to the corresponding model name.
+
 
 Then start the server:
 

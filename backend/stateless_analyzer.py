@@ -3,7 +3,7 @@
 
 from typing import Optional, List
 from pydantic import BaseModel, Field
-from polycli import PolyAgent
+from polyagent import PolyAgent
 import config
 
 

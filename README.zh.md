@@ -103,7 +103,7 @@ uv pip install -r requirements.txt
   }
 }
 ```
-> 注意：需要把default改成对应的model名称
+
 
 然后启动服务器：
 

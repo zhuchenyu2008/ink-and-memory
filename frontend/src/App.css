@@ -134,6 +134,18 @@
   }
 }
 
+@keyframes energyChargeGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(102, 102, 102, 0.0);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(102, 102, 102, 0.6);
+    filter: brightness(1.2);
+  }
+}
+
 /* @@@ Comment expansion animations */
 @keyframes slideDownFadeIn {
   from {

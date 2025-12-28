@@ -95,14 +95,20 @@ uv pip install -r requirements.txt
 ```json
 {
   "models": {
-    "default": {
-      "endpoint": "https://api.your-provider.com/v1",
+    "gemini-3-flash-preview": {
+      "endpoint": "https://openrouter.ai/api/v1",
       "api_key": "your-key-here",
-      "model": "gpt-4o"
+      "model": "google/gemini-3-flash-preview"
     }
+  },
+  "roles": {
+    "voice_analysis": "gemini-3-flash-preview",
+    "voice_chat": "gemini-3-flash-preview"
   }
 }
 ```
+
+完整配置选项（包括图片生成设置）请参考 `backend/models.json.example`。
 
 然后启动服务器：
 

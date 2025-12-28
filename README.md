@@ -95,14 +95,20 @@ Create a `models.json` file for your LLM:
 ```json
 {
   "models": {
-    "default": {
-      "endpoint": "https://api.your-provider.com/v1",
+    "gemini-3-flash-preview": {
+      "endpoint": "https://openrouter.ai/api/v1",
       "api_key": "your-key-here",
-      "model": "gpt-4o"
+      "model": "google/gemini-3-flash-preview"
     }
+  },
+  "roles": {
+    "voice_analysis": "gemini-3-flash-preview",
+    "voice_chat": "gemini-3-flash-preview"
   }
 }
 ```
+
+See `backend/models.json.example` for the full set of roles and image settings.
 
 Then start the server:
 

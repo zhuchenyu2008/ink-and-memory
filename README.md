@@ -116,6 +116,15 @@ Then start the server:
 python server.py  # Runs on http://localhost:8765
 ```
 
+### Manual database initialization
+
+If you need to create the SQLite tables before first launch, run:
+
+```bash
+cd backend
+python database.py
+```
+
 ### Frontend Setup
 
 ```bash

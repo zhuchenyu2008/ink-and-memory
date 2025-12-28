@@ -116,6 +116,15 @@ uv pip install -r requirements.txt
 python server.py  # 运行在 http://localhost:8765
 ```
 
+### 手动初始化数据库
+
+首次启动前如果需要手动创建 SQLite 表结构，可执行：
+
+```bash
+cd backend
+python database.py
+```
+
 ### 前端设置
 
 ```bash

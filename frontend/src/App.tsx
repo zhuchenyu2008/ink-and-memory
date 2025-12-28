@@ -933,6 +933,9 @@ export default function App() {
   const currentEnergy = lastEntry?.energy || 0;
   const usedEnergy = state.commentors.filter(c => c.appliedAt).length * 50;
   const unusedEnergy = currentEnergy - usedEnergy;
+  const energyRatio = currentEnergy > 0 ? unusedEnergy / currentEnergy : 0;
+  const energyProgress = Math.min(Math.max(energyRatio, 0), 1);
+  const energyIsFull = energyRatio >= 1;
   const appliedComments = state.commentors.filter(c => c.appliedAt);
 
   return (
@@ -1442,7 +1445,27 @@ export default function App() {
                 backgroundColor: '#fafafa',
                 zIndex: 50
               }}>
-                <span>Energy: {unusedEnergy}/{currentEnergy}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>Energy: {unusedEnergy}/{currentEnergy}</span>
+                  <div style={{
+                    width: '80px',
+                    height: '8px',
+                    borderRadius: '999px',
+                    backgroundColor: '#ddd',
+                    overflow: 'hidden'
+                  }}>
+                    <div
+                      className={energyIsFull ? 'energyPulse' : undefined}
+                      style={{
+                        width: `${energyProgress * 100}%`,
+                        height: '100%',
+                        backgroundColor: '#666',
+                        borderRadius: '999px',
+                        transition: 'width 0.3s ease'
+                      }}
+                    />
+                  </div>
+                </div>
                 <span>Weight: {lastEntry?.weight || 0}</span>
                 <span>Applied: {appliedComments.length}</span>
                 <span>Groups: {commentGroups.size}</span>

@@ -134,6 +134,25 @@
   }
 }
 
+@keyframes energyPulse {
+  0% {
+    box-shadow: 0 0 0 rgba(102, 102, 102, 0.4);
+    opacity: 0.85;
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(102, 102, 102, 0.6);
+    opacity: 1;
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(102, 102, 102, 0.4);
+    opacity: 0.85;
+  }
+}
+
+.energyPulse {
+  animation: energyPulse 1.6s ease-in-out infinite;
+}
+
 /* @@@ Comment expansion animations */
 @keyframes slideDownFadeIn {
   from {

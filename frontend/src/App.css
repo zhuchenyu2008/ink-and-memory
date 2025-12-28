@@ -134,6 +134,26 @@
   }
 }
 
+@keyframes energyPulse {
+  0% {
+    box-shadow: 0 0 0 rgba(102, 102, 102, 0);
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow:
+      0 0 12px rgba(102, 102, 102, 0.75),
+      0 0 20px rgba(102, 102, 102, 0.45);
+    transform: scale(1.06);
+    filter: brightness(1.15);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(102, 102, 102, 0);
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
 /* @@@ Comment expansion animations */
 @keyframes slideDownFadeIn {
   from {

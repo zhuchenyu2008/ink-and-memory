@@ -293,3 +293,26 @@
   left: 80px;
   z-index: 99999;
 }
+
+@media (max-width: 767px) {
+  .book-interface {
+    top: 0;
+    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  .book-page.right-page {
+    padding: 1rem;
+  }
+
+  .book-page.right-page > * {
+    margin-left: 0.75rem;
+  }
+
+  .voice-input-modal {
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+}

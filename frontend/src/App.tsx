@@ -9,6 +9,7 @@ import {
   FaSync,
   FaBrain, FaHeart, FaQuestion, FaCloud, FaTheaterMasks, FaEye,
   FaFistRaised, FaLightbulb, FaShieldAlt, FaWind, FaFire, FaCompass,
+  FaPenNib, FaRegClock, FaChartBar, FaLayerGroup, FaCog,
 } from 'react-icons/fa';
 import TopNavBar from './components/TopNavBar';
 import LeftToolbar from './components/LeftToolbar';
@@ -91,6 +92,15 @@ export default function App() {
   const isMobile = useMobile();
   const { isAuthenticated, isLoading } = useAuth();
   const { t, i18n } = useTranslation();
+  const mobileNavHeight = 64;
+  const mobileBottomOffset = isMobile
+    ? `calc(${mobileNavHeight}px + env(safe-area-inset-bottom, 0px))`
+    : '0px';
+  const mobileTopInset = isMobile ? 'env(safe-area-inset-top, 0px)' : '48px';
+  const viewTopOffset = isMobile ? 0 : 48;
+  const writingBottomPadding = isMobile
+    ? `calc(${mobileNavHeight}px + env(safe-area-inset-bottom, 0px) + 12px)`
+    : '41px';
 
   // @@@ Auth screen state
   const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
@@ -250,6 +260,13 @@ export default function App() {
   const [showFullEnergy, setShowFullEnergy] = useState(false);
   const fullEnergyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const energyProgress = showFullEnergy ? 1 : energyRemainder / energyThreshold;
+  const mobileNavItems = [
+    { key: 'writing' as const, label: t('nav.writing'), icon: FaPenNib },
+    { key: 'timeline' as const, label: t('nav.timeline'), icon: FaRegClock },
+    { key: 'analysis' as const, label: t('nav.analysis'), icon: FaChartBar },
+    { key: 'decks' as const, label: t('nav.decks'), icon: FaLayerGroup },
+    { key: 'settings' as const, label: t('nav.settings'), icon: FaCog },
+  ];
 
   useEffect(() => {
     const prevLevel = energyLevelRef.current;
@@ -1085,8 +1102,8 @@ export default function App() {
         <div style={{
           display: 'flex',
           height: '100vh',
-          paddingTop: isMobile ? '0' : '48px',
-          paddingBottom: '41px',  // @@@ Space for fixed stats bar at bottom
+          paddingTop: mobileTopInset,
+          paddingBottom: writingBottomPadding,  // @@@ Space for fixed stats bar + mobile nav
           fontFamily: 'system-ui, -apple-system, sans-serif',
           boxSizing: 'border-box'
         }}>
@@ -1152,7 +1169,7 @@ export default function App() {
           {isMobile && (
             <div style={{
               position: 'fixed',
-              top: '10px',
+              top: 'calc(10px + env(safe-area-inset-top, 0px))',
               right: '10px',
               display: 'flex',
               gap: '8px',
@@ -1233,7 +1250,9 @@ export default function App() {
                   overflow: 'auto',
                   padding: '20px',
                   paddingLeft: isMobile ? '20px' : '80px',  // @@@ Extra left padding for floating toolbar
-                  paddingBottom: '80px',  // Extra space for smooth scrolling to bottom
+                  paddingBottom: isMobile
+                    ? `calc(80px + ${mobileNavHeight}px + env(safe-area-inset-bottom, 0px))`
+                    : '80px',  // Extra space for smooth scrolling to bottom
                   backgroundColor: '#fffef9'  // @@@ Cream paper background for notebook lines
                 }}>
                 <div style={{
@@ -1429,7 +1448,7 @@ export default function App() {
                 {isMobile && mobileActiveComment && (
                   <div style={{
                     position: 'fixed',
-                    bottom: '20px',
+                    bottom: `calc(${mobileNavHeight}px + 20px + env(safe-area-inset-bottom, 0px))`,
                     left: '10px',
                     right: '10px',
                     background: '#fff',
@@ -1471,15 +1490,16 @@ export default function App() {
               {/* Debug stats bar at bottom */}
               <div style={{
                 position: 'fixed',
-                bottom: 0,
+                bottom: isMobile ? mobileBottomOffset : 0,
                 left: 0,
                 right: 0,
-                padding: '10px 20px',
+                padding: isMobile ? '8px 12px' : '10px 20px',
                 borderTop: '1px solid #e0e0e0',
-                fontSize: '12px',
+                fontSize: isMobile ? '11px' : '12px',
                 color: '#666',
                 display: 'flex',
-                gap: '20px',
+                gap: isMobile ? '12px' : '20px',
+                flexWrap: isMobile ? 'wrap' : 'nowrap',
                 backgroundColor: '#fafafa',
                 zIndex: 50
               }}>
@@ -1499,7 +1519,7 @@ export default function App() {
                       }}
                     >
                       <span style={{
-                        width: '120px',
+                        width: isMobile ? '84px' : '120px',
                         height: '8px',
                         borderRadius: '999px',
                         background: 'rgba(102, 102, 102, 0.2)',
@@ -1538,10 +1558,10 @@ export default function App() {
       {currentView === 'decks' && (
         <div style={{
           position: 'fixed',
-          top: 48,
+          top: viewTopOffset,
           left: 0,
           right: 0,
-          bottom: 0,
+          bottom: mobileBottomOffset,
           background: '#f8f0e6',
           display: 'flex',
           overflow: 'hidden'
@@ -1565,13 +1585,13 @@ export default function App() {
           flex: 1,
           display: 'flex',
           justifyContent: 'center',
-          padding: '60px 40px 120px 40px',
+          padding: isMobile ? '24px 16px 120px 16px' : '60px 40px 120px 40px',
           overflow: 'auto',
           position: 'fixed',
-          top: 48,
+          top: viewTopOffset,
           left: 0,
           right: 0,
-          bottom: 0,
+          bottom: mobileBottomOffset,
           background: '#f8f0e6'
         }}>
           <div style={{
@@ -1699,7 +1719,8 @@ export default function App() {
                       <span style={{
                         position: 'absolute',
                         top: 3,
-                        left: showEnergyBar ? 24 : 4,
+                        left: showEnergyBar ? 'auto' : 4,
+                        right: showEnergyBar ? 4 : 'auto',
                         width: 16,
                         height: 16,
                         borderRadius: '50%',
@@ -1720,10 +1741,10 @@ export default function App() {
       {/* @@@ Always render timeline to pre-load data and position scroll */}
       <div style={{
         position: 'fixed',
-        top: 48,
+        top: viewTopOffset,
         left: 0,
         right: 0,
-        bottom: 0,
+        bottom: mobileBottomOffset,
         background: '#f8f0e6',
         display: currentView === 'timeline' ? 'flex' : 'none',
         overflow: 'hidden'
@@ -1737,16 +1758,64 @@ export default function App() {
       {currentView === 'analysis' && (
         <div style={{
           position: 'fixed',
-          top: 48,
+          top: viewTopOffset,
           left: 0,
           right: 0,
-          bottom: 0,
+          bottom: mobileBottomOffset,
           background: '#f8f0e6',
           display: 'flex',
           overflow: 'hidden'
         }}>
           <AnalysisView />
         </div>
+      )}
+
+      {isMobile && (
+        <nav style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: `calc(${mobileNavHeight}px + env(safe-area-inset-bottom, 0px))`,
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          background: '#f8f0e6',
+          borderTop: '1px solid #d0c4b0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          zIndex: 900
+        }}>
+          {mobileNavItems.map((item) => {
+            const isActive = currentView === item.key;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.key}
+                onClick={() => setCurrentView(item.key)}
+                aria-pressed={isActive}
+                style={{
+                  flex: 1,
+                  height: '100%',
+                  border: 'none',
+                  background: 'transparent',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  color: isActive ? '#2c2c2c' : '#8a7a69',
+                  fontSize: 11,
+                  fontWeight: isActive ? 600 : 400,
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  cursor: isActive ? 'default' : 'pointer'
+                }}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
       )}
 
       {/* Warning Dialog */}

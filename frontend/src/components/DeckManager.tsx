@@ -360,7 +360,7 @@ export default function DeckManager({ onUpdate }: Props) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f8f0e6', overflow: 'hidden' }}>
       {/* Scrollable Content with embedded header */}
-      <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
+      <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 32px)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Embedded Header */}
           <div style={{
@@ -460,8 +460,8 @@ export default function DeckManager({ onUpdate }: Props) {
                     gap: 10,
                     cursor: 'pointer',
                     transition: 'transform 0.15s, box-shadow 0.15s',
-                    flex: '0 0 360px',
-                    minWidth: 320,
+                    flex: '1 1 320px',
+                    minWidth: 0,
                     maxWidth: '100%'
                   }}
                   onMouseEnter={(e) => {
@@ -680,8 +680,8 @@ export default function DeckManager({ onUpdate }: Props) {
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 10,
-                      flex: '0 0 360px',
-                      minWidth: 320,
+                      flex: '1 1 320px',
+                      minWidth: 0,
                       maxWidth: '100%'
                     }}
                     onMouseEnter={(e) => {

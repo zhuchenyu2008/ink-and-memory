@@ -7,6 +7,7 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 import { getDateLocale } from '../i18n';
 import { extractFirstLine } from '../utils/calendarStorage';
 import { getLocalDayKey } from '../utils/timezone';
+import { useMobile } from '../utils/mobileDetect';
 
 // @@@ TypeScript interfaces
 interface TimelineDay {
@@ -47,6 +48,7 @@ interface CollectionsViewProps {
 export default function CollectionsView({ isVisible, voiceConfigs, timezone }: CollectionsViewProps) {
   const { i18n } = useTranslation();
   const dateLocale = getDateLocale(i18n.language);
+  const isMobile = useMobile();
   return (
     <div style={{
       width: '100%',
@@ -61,6 +63,7 @@ export default function CollectionsView({ isVisible, voiceConfigs, timezone }: C
         voiceConfigs={voiceConfigs}
         dateLocale={dateLocale}
         timezone={timezone}
+        isMobile={isMobile}
       />
     </div>
   );
@@ -211,6 +214,7 @@ interface TimelineCardProps {
   onImageClick: (picture: TimelinePicture) => void;
   onGenerate?: (date: string) => void;
   side: 'left' | 'right';
+  isMobile: boolean;
 }
 
 function TimelineCard({
@@ -224,7 +228,8 @@ function TimelineCard({
   t,
   onImageClick,
   onGenerate,
-  side
+  side,
+  isMobile
 }: TimelineCardProps) {
   const cardCursor = dayData?.picture && !isGenerating ? 'pointer' : 'default';
   const textContent = textByDate.get(day.date);
@@ -247,6 +252,8 @@ function TimelineCard({
   // For left side: text on left, image on right (near center line)
   // For right side: image on left (near center line), text on right
   const isLeftSide = side === 'left';
+  const useRowLayout = isMobile ? true : isLeftSide;
+  const textAlign = isMobile ? 'left' : (isLeftSide ? 'right' : 'left');
 
   return (
     <div
@@ -257,7 +264,7 @@ function TimelineCard({
       }}
       style={{
         display: 'flex',
-        flexDirection: isLeftSide ? 'row' : 'row-reverse',
+        flexDirection: useRowLayout ? 'row' : 'row-reverse',
         alignItems: 'center',
         gap: '0.75rem',
         padding: '0.5rem',
@@ -285,9 +292,9 @@ function TimelineCard({
       <div style={{
         flex: 1,
         minWidth: 0,
-        textAlign: isLeftSide ? 'right' : 'left',
-        paddingRight: isLeftSide ? '0.5rem' : 0,
-        paddingLeft: isLeftSide ? 0 : '0.5rem',
+        textAlign,
+        paddingRight: isMobile ? 0 : (isLeftSide ? '0.5rem' : 0),
+        paddingLeft: isMobile ? '0.5rem' : (isLeftSide ? 0 : '0.5rem'),
       }}>
         <div style={{
           fontSize: '13px',
@@ -320,8 +327,8 @@ function TimelineCard({
               src={`data:image/${dayData.picture.base64?.startsWith('iVBOR') ? 'png' : 'jpeg'};base64,${dayData.picture.base64}`}
               alt={dayData.picture.prompt}
               style={{
-                width: '72px',
-                height: '72px',
+                width: isMobile ? '64px' : '72px',
+                height: isMobile ? '64px' : '72px',
                 objectFit: 'cover',
                 borderRadius: '6px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
@@ -366,8 +373,8 @@ function TimelineCard({
           </div>
         ) : (
           <div style={{
-            width: '72px',
-            height: '72px',
+            width: isMobile ? '64px' : '72px',
+            height: isMobile ? '64px' : '72px',
             background: day.isFuture
               ? 'linear-gradient(135deg, #f8f0e6 0%, #ede3d5 100%)'
               : 'linear-gradient(135deg, #f0e8de 0%, #e5dbc9 100%)',
@@ -393,9 +400,10 @@ interface TimelinePageProps {
   voiceConfigs: Record<string, any>;
   dateLocale: string;
   timezone: string;
+  isMobile: boolean;
 }
 
-function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: TimelinePageProps) {
+function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone, isMobile }: TimelinePageProps) {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const [days, setDays] = useState<TimelineDay[]>([]);
@@ -417,6 +425,8 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const loadedRangesRef = useRef<Set<string>>(new Set());
+  const cardInset = isMobile ? '1rem' : '2rem';
+  const cardTopOffset = isMobile ? 20 : 32;
 
   const mergeSessions = useCallback((sessions: SessionSummary[]) => {
     setSessionSummaries(prev => {
@@ -838,8 +848,8 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
           position: 'relative',
           maxWidth: '900px',
           width: '100%',
-          padding: '2rem',
-          paddingBottom: '5rem',
+          padding: isMobile ? '1rem' : '2rem',
+          paddingBottom: isMobile ? '4rem' : '5rem',
         }}
       >
         {/* Center line */}
@@ -847,12 +857,13 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
           style={{
             position: 'absolute',
             left: '50%',
-            top: '2rem',
-            bottom: '5rem',
-            width: '4px',
+            top: isMobile ? '1rem' : '2rem',
+            bottom: isMobile ? '4rem' : '5rem',
+            width: isMobile ? '2px' : '4px',
             background: 'linear-gradient(180deg, transparent 0%, #d0c4b0 2%, #d0c4b0 98%, transparent 100%)',
             transform: 'translateX(-50%)',
             zIndex: 1,
+            opacity: 1
           }}
         />
 
@@ -894,12 +905,14 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
               data-date={day.date}
               style={{
                 position: 'absolute',
-                top: `${topPosition + 32}px`, // 32px accounts for padding
-                left: isLeftSide ? '2rem' : '50%',
-                right: isLeftSide ? '50%' : '2rem',
-                paddingRight: isLeftSide ? '24px' : '0',
-                paddingLeft: isLeftSide ? '0' : '24px',
+                top: `${topPosition + cardTopOffset}px`,
+                left: isMobile ? '50%' : (isLeftSide ? cardInset : '50%'),
+                right: isMobile ? 'auto' : (isLeftSide ? '50%' : cardInset),
+                transform: isMobile ? 'translateX(-50%)' : 'none',
+                paddingRight: isMobile ? 0 : (isLeftSide ? '24px' : '0'),
+                paddingLeft: isMobile ? 0 : (isLeftSide ? '0' : '24px'),
                 height: `${CARD_HEIGHT}px`,
+                width: isMobile ? 'min(88vw, 460px)' : 'auto',
                 zIndex: days.length - globalIndex, // Stack order for overlapping
               }}
             >
@@ -908,8 +921,9 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
                 style={{
                   position: 'absolute',
                   top: '50%',
-                  [isLeftSide ? 'right' : 'left']: '-10px',
-                  transform: 'translateY(-50%)',
+                  ...(isMobile
+                    ? { left: '50%', transform: 'translate(-50%, -50%)' }
+                    : { [isLeftSide ? 'right' : 'left']: '-10px', transform: 'translateY(-50%)' }),
                   width: '14px',
                   height: '14px',
                   borderRadius: '50%',
@@ -932,6 +946,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
                 onImageClick={handleImageClick}
                 onGenerate={handleGenerateForDate}
                 side={isLeftSide ? 'left' : 'right'}
+                isMobile={isMobile}
               />
             </div>
           );
@@ -955,7 +970,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 9999,
-            padding: '3rem'
+            padding: isMobile ? '1rem' : '3rem'
           }}
           onClick={() => setViewingImage(null)}
         >
@@ -965,25 +980,26 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
               flexDirection: 'column',
               maxWidth: '1400px',
               width: '100%',
-              maxHeight: '90vh',
+              maxHeight: isMobile ? '95vh' : '90vh',
               background: '#fff',
               borderRadius: '12px',
               overflow: 'hidden',
               boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-              marginTop: '2rem'
+              marginTop: isMobile ? 0 : '2rem'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Main content: Image + Comments */}
             <div style={{
               display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
               flex: 1,
               minHeight: 0,
               overflow: 'hidden'
             }}>
               {/* Image on left */}
               <div style={{
-                flex: '0 0 55%',
+                flex: isMobile ? '0 0 auto' : '0 0 55%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1036,7 +1052,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
 
               {/* Starred comments on right */}
               <div style={{
-                flex: '0 0 45%',
+                flex: isMobile ? '1 1 auto' : '0 0 45%',
                 background: '#f9f7f4',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1045,7 +1061,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
               }}>
                 {/* Header */}
                 <div style={{
-                  padding: '2rem 2rem 1rem',
+                  padding: isMobile ? '1rem 1.25rem 0.75rem' : '2rem 2rem 1rem',
                   borderBottom: '1px solid #e0d8cc',
                   flexShrink: 0
                 }}>
@@ -1065,7 +1081,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
                   flex: 1,
                   overflowY: 'auto',
                   overflowX: 'hidden',
-                  padding: '1.5rem 2rem',
+                  padding: isMobile ? '1rem 1.25rem' : '1.5rem 2rem',
                   minWidth: 0,
                   width: '100%',
                   boxSizing: 'border-box'
@@ -1198,7 +1214,7 @@ function TimelinePage({ isVisible, voiceConfigs, dateLocale, timezone }: Timelin
             <div style={{
               borderTop: '1px solid #e0d8cc',
               background: '#f0e8de',
-              padding: '1rem 2rem',
+              padding: isMobile ? '0.75rem 1.25rem' : '1rem 2rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',

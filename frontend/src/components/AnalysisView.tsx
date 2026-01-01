@@ -4,6 +4,7 @@ import { analyzeEchoes, analyzeTraits, analyzePatterns, saveAnalysisReport, getA
 import { useAuth } from '../contexts/AuthContext';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { getDateLocale } from '../i18n';
+import { useMobile } from '../utils/mobileDetect';
 
 // @@@ Constants
 const MAX_SAVED_REPORTS = 10;
@@ -44,6 +45,7 @@ export default function AnalysisView() {
   const { isAuthenticated } = useAuth();
   const { t, i18n } = useTranslation();
   const dateLocale = getDateLocale(i18n.language);
+  const isMobile = useMobile();
   const formatDaysLabel = (count: number) => t('analysis.statsLabels.daysCount', { count });
   const formatEntriesLabel = (count: number) => t('analysis.statsLabels.entriesCount', { count });
   const formatWordsLabel = (value: number) => t('analysis.statsLabels.wordsCount', { value: value.toLocaleString() });
@@ -265,9 +267,9 @@ export default function AnalysisView() {
           onClick={() => setViewMode('dashboard')}
           style={{
             position: 'absolute',
-            top: '2rem',
-            left: '2rem',
-            padding: '12px 24px',
+            top: isMobile ? '1rem' : '2rem',
+            left: isMobile ? '1rem' : '2rem',
+            padding: isMobile ? '10px 16px' : '12px 24px',
             borderRadius: '24px',
             background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,250,240,0.9) 100%)',
             border: '2px solid rgba(139,115,85,0.25)',
@@ -309,8 +311,8 @@ export default function AnalysisView() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '2rem',
-          marginTop: '-60px'
+          padding: isMobile ? '1rem' : '2rem',
+          marginTop: isMobile ? '0' : '-60px'
         }}>
           <PaperStack
             echoes={echoes}
@@ -318,6 +320,7 @@ export default function AnalysisView() {
             patterns={patterns}
             currentPaper={currentPaper}
             onPaperChange={setCurrentPaper}
+            isMobile={isMobile}
           />
         </div>
       </div>
@@ -332,7 +335,7 @@ export default function AnalysisView() {
       overflowY: 'auto',
       background: 'linear-gradient(180deg, #f8f0e6 0%, #ede3d5 100%)',
       fontFamily: "'Excalifont', 'Xiaolai', 'Georgia', serif",
-      padding: '3rem 2rem',
+      padding: isMobile ? '1.75rem 1rem 2.5rem' : '3rem 2rem',
       position: 'relative'
     }}>
       <DecorativeInkSpots />
@@ -345,7 +348,7 @@ export default function AnalysisView() {
           position: 'relative'
         }}>
           <h1 style={{
-            fontSize: '48px',
+            fontSize: isMobile ? '32px' : '48px',
             fontWeight: 400,
             color: '#3d3226',
             marginBottom: '0.75rem',
@@ -364,7 +367,7 @@ export default function AnalysisView() {
             opacity: 0.4
           }} />
           <p style={{
-            fontSize: '15px',
+            fontSize: isMobile ? '14px' : '15px',
             color: '#6b5d4f',
             lineHeight: 1.8,
             fontStyle: 'italic',
@@ -379,7 +382,7 @@ export default function AnalysisView() {
         <div style={{
           display: 'flex',
           justifyContent: 'center',
-          gap: '2rem',
+          gap: isMobile ? '1rem' : '2rem',
           marginBottom: '3rem',
           flexWrap: 'wrap'
         }}>
@@ -405,7 +408,7 @@ export default function AnalysisView() {
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: '1.5rem',
+              gap: isMobile ? '1rem' : '1.5rem',
               marginBottom: '2rem'
             }}>
               {savedReports.slice(0, 3).map((report, idx) => (
@@ -676,15 +679,18 @@ function PaperStack({
   traits,
   patterns,
   currentPaper,
-  onPaperChange
+  onPaperChange,
+  isMobile
 }: {
   echoes: Echo[];
   traits: Trait[];
   patterns: Pattern[];
   currentPaper: number;
   onPaperChange: (index: number) => void;
+  isMobile: boolean;
 }) {
   const { t } = useTranslation();
+  const contentMaxHeight = isMobile ? '42vh' : '500px';
   // @@@ Build papers array (only include non-empty ones)
   const papers = [];
 
@@ -698,9 +704,9 @@ function PaperStack({
           display: 'flex',
           flexDirection: 'column',
           gap: '1rem',
-          maxHeight: '500px',
+          maxHeight: contentMaxHeight,
           overflowY: 'auto',
-          paddingRight: '1rem'
+          paddingRight: isMobile ? '0.5rem' : '1rem'
         }}>
           {echoes.map((echo, idx) => (
             <EchoCard key={idx} echo={echo} />
@@ -718,11 +724,11 @@ function PaperStack({
       content: (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
           gap: '1rem',
-          maxHeight: '500px',
+          maxHeight: contentMaxHeight,
           overflowY: 'auto',
-          paddingRight: '1rem'
+          paddingRight: isMobile ? '0.5rem' : '1rem'
         }}>
           {traits.map((trait, idx) => (
             <TraitCard key={idx} trait={trait} />
@@ -742,9 +748,9 @@ function PaperStack({
           display: 'flex',
           flexDirection: 'column',
           gap: '1rem',
-          maxHeight: '500px',
+          maxHeight: contentMaxHeight,
           overflowY: 'auto',
-          paddingRight: '1rem'
+          paddingRight: isMobile ? '0.5rem' : '1rem'
         }}>
           {patterns.map((pattern, idx) => (
             <PatternCard key={idx} pattern={pattern} />
@@ -761,8 +767,8 @@ function PaperStack({
     <div style={{
       position: 'relative',
       width: '100%',
-      maxWidth: '1100px',
-      height: '650px',
+      maxWidth: isMobile ? '520px' : '1100px',
+      height: isMobile ? '520px' : '650px',
       margin: '0 auto',
       perspective: '1200px'
     }}>
@@ -772,10 +778,10 @@ function PaperStack({
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        marginLeft: '-30px',
+        marginLeft: isMobile ? '0' : '-30px',
         width: '100%',
-        maxWidth: '900px',
-        height: '600px'
+        maxWidth: isMobile ? '520px' : '900px',
+        height: isMobile ? '480px' : '600px'
       }}>
         {papers.map((paper, idx) => {
           const isActive = idx === currentPaper;
@@ -819,7 +825,7 @@ function PaperStack({
                   inset 0 -1px 0 rgba(139,115,85,0.08)
                 `,
                 border: '1px solid rgba(139,115,85,0.15)',
-                padding: '3rem',
+                padding: isMobile ? '1.5rem' : '3rem',
                 overflow: 'hidden',
                 position: 'relative'
               }}>
@@ -880,7 +886,7 @@ function PaperStack({
                       <span style={{ fontSize: '32px' }}>{paper.icon}</span>
                       <div>
                         <h2 style={{
-                          fontSize: '28px',
+                          fontSize: isMobile ? '22px' : '28px',
                           fontWeight: 400,
                           color: '#3d3226',
                           fontFamily: 'Georgia, serif',
@@ -922,12 +928,12 @@ function PaperStack({
             disabled={currentPaper === 0}
             style={{
               position: 'absolute',
-              left: '50%',
-              marginLeft: '-540px',
+              left: isMobile ? '12px' : '50%',
+              marginLeft: isMobile ? 0 : '-540px',
               top: '50%',
               transform: 'translateY(-50%)',
-              width: '48px',
-              height: '48px',
+              width: isMobile ? '40px' : '48px',
+              height: isMobile ? '40px' : '48px',
               borderRadius: '50%',
               background: currentPaper === 0 ? 'rgba(139,115,85,0.1)' : 'rgba(255,255,255,0.95)',
               border: '2px solid rgba(139,115,85,0.2)',
@@ -935,7 +941,7 @@ function PaperStack({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '20px',
+              fontSize: isMobile ? '18px' : '20px',
               color: currentPaper === 0 ? '#ccc' : '#5d4a3a',
               transition: 'all 0.3s',
               boxShadow: currentPaper === 0 ? 'none' : '0 4px 12px rgba(139,115,85,0.15)',
@@ -960,12 +966,13 @@ function PaperStack({
             disabled={currentPaper === totalPapers - 1}
             style={{
               position: 'absolute',
-              left: '50%',
-              marginLeft: '530px',
+              left: isMobile ? 'auto' : '50%',
+              right: isMobile ? '12px' : 'auto',
+              marginLeft: isMobile ? 0 : '530px',
               top: '50%',
               transform: 'translateY(-50%)',
-              width: '48px',
-              height: '48px',
+              width: isMobile ? '40px' : '48px',
+              height: isMobile ? '40px' : '48px',
               borderRadius: '50%',
               background: currentPaper === totalPapers - 1 ? 'rgba(139,115,85,0.1)' : 'rgba(255,255,255,0.95)',
               border: '2px solid rgba(139,115,85,0.2)',
@@ -973,7 +980,7 @@ function PaperStack({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '20px',
+              fontSize: isMobile ? '18px' : '20px',
               color: currentPaper === totalPapers - 1 ? '#ccc' : '#5d4a3a',
               transition: 'all 0.3s',
               boxShadow: currentPaper === totalPapers - 1 ? 'none' : '0 4px 12px rgba(139,115,85,0.15)',
@@ -996,7 +1003,7 @@ function PaperStack({
           {/* Paper indicators */}
           <div style={{
             position: 'absolute',
-            bottom: '-40px',
+            bottom: isMobile ? '-24px' : '-40px',
             left: '50%',
             transform: 'translateX(-50%)',
             display: 'flex',

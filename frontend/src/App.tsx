@@ -450,10 +450,6 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [state, refsReady]);
 
-  const handleStartFresh = useCallback(() => {
-    setShowWarning(true);
-  }, []);
-
   const handleConfirmStartFresh = useCallback(() => {
     setShowWarning(false);
     confirmStartFresh();
